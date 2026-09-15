@@ -1,27 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="EntityFramework_Reverse_POCO_Generator..d542a934-8bd6-4136-b490-5f0049d62033" Version="4.0.45" Language="en-US" Publisher="Simon Hughes" />
+        <Identity Id="EntityFramework_Reverse_POCO_Generator..d542a934-8bd6-4136-b490-5f0049d62033" Version="4.0.46" Language="en-US" Publisher="Simon Hughes" />
         <DisplayName>EntityFramework Reverse POCO Generator</DisplayName>
-        <Description xml:space="preserve">Reverse engineers an existing database and generates Entity Framework Code First POCO classes, configuration mappings, enumerations, DbContext, FakeDbContext (for easy unit testing) and calls to stored procedures and table-valued functions.
-
-Supports EF Core 8, 9 and 10, and EF6. Databases: SQL Server, PostgreSQL, MySQL / MariaDB, Oracle and SQLite.
-
-Add it to a project with Add - New Item, and search for reverse poco. Right-click the .tt file in Solution Explorer for:
-- Connection - set the database connection
-- Choose tables and procedures - pick the objects to generate
-- All settings - edit every template setting, with code previews
-- Upgrade this template to v4 - migrate a v3 template
-- Check efrpg tool - confirm the schema reader is installed
-
-Requires the efrpg dotnet tool: dotnet tool install -g Efrpg</Description>
+        <Description xml:space="preserve">Reverse engineers an existing database into Entity Framework Code First POCO classes, mappings, enumerations, DbContext, FakeDbContext and stored procedure calls. EF Core 8, 9, 10 and EF6. SQL Server, PostgreSQL, MySQL, Oracle and SQLite. Requires the efrpg dotnet tool.</Description>
         <MoreInfo>https://github.com/ReversePOCO/EntityFramework-Reverse-POCO-Code-First-Generator</MoreInfo>
         <License>license.txt</License>
         <GettingStartedGuide>https://github.com/ReversePOCO/EntityFramework-Reverse-POCO-Code-First-Generator#installation</GettingStartedGuide>
         <ReleaseNotes>https://github.com/ReversePOCO/EntityFramework-Reverse-POCO-Code-First-Generator/releases</ReleaseNotes>
         <Icon>TemplateIcon.ico</Icon>
         <PreviewImage>PreviewImage.png</PreviewImage>
-        <Tags>EF Core, Entity Framework, Scaffolding, SQL Server, PostgreSQL, Oracle, MySQL, MariaDB, SQLite</Tags>
+        <Tags>EF Core;Entity Framework;Scaffolding;SQL Server;PostgreSQL;Oracle;MySQL;MariaDB;SQLite</Tags>
     </Metadata>
     <Installation>
         <InstallationTarget Version="[17.0,)" Id="Microsoft.VisualStudio.Community">

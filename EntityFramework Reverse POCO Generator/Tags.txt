@@ -1,1 +1,1 @@
-﻿EF Core, Entity Framework, Scaffolding, SQL Server, PostgreSQL, Oracle, MySQL, MariaDB, SQLite
+﻿EF Core;Entity Framework;Scaffolding;SQL Server;PostgreSQL;Oracle;MySQL;MariaDB;SQLite

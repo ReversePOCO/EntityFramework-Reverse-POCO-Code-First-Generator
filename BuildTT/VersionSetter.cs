@@ -84,22 +84,12 @@ namespace BuildTT
                 tt.WriteLine("    <Metadata>");
                 tt.WriteLine($"        <Identity Id=\"EntityFramework_Reverse_POCO_Generator..d542a934-8bd6-4136-b490-5f0049d62033\" Version=\"{_version}\" Language=\"en-US\" Publisher=\"Simon Hughes\" />");
                 tt.WriteLine("        <DisplayName>EntityFramework Reverse POCO Generator</DisplayName>");
-                // Shown in the Extension Manager. xml:space="preserve" keeps the line breaks, so the text lines
-                // start in column 0.
+                // Shown in the Extension Manager and as the marketplace summary. The marketplace refuses a
+                // description of 280 characters or more, so the fuller story lives in the overview page.
                 tt.WriteLine("        <Description xml:space=\"preserve\">" +
-                             "Reverse engineers an existing database and generates Entity Framework Code First POCO classes, configuration mappings, " +
-                             "enumerations, DbContext, FakeDbContext (for easy unit testing) and calls to stored procedures and table-valued functions.");
-                tt.WriteLine();
-                tt.WriteLine("Supports EF Core 8, 9 and 10, and EF6. Databases: SQL Server, PostgreSQL, MySQL / MariaDB, Oracle and SQLite.");
-                tt.WriteLine();
-                tt.WriteLine("Add it to a project with Add - New Item, and search for reverse poco. Right-click the .tt file in Solution Explorer for:");
-                tt.WriteLine("- Connection - set the database connection");
-                tt.WriteLine("- Choose tables and procedures - pick the objects to generate");
-                tt.WriteLine("- All settings - edit every template setting, with code previews");
-                tt.WriteLine("- Upgrade this template to v4 - migrate a v3 template");
-                tt.WriteLine("- Check efrpg tool - confirm the schema reader is installed");
-                tt.WriteLine();
-                tt.WriteLine("Requires the efrpg dotnet tool: dotnet tool install -g Efrpg</Description>");
+                             "Reverse engineers an existing database into Entity Framework Code First POCO classes, mappings, enumerations, " +
+                             "DbContext, FakeDbContext and stored procedure calls. EF Core 8, 9, 10 and EF6. SQL Server, PostgreSQL, MySQL, " +
+                             "Oracle and SQLite. Requires the efrpg dotnet tool.</Description>");
                 tt.WriteLine($"        <MoreInfo>{repoUrl}</MoreInfo>");
                 // The schema fixes the element order: License before GettingStartedGuide and ReleaseNotes, or the
                 // build fails with VSSDK1062.

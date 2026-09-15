@@ -8,14 +8,14 @@
         <Icon>TemplateIcon.ico</Icon>
         <PreviewImage>PreviewImage.png</PreviewImage>
         <NumberOfParentCategoriesToRollUp>1</NumberOfParentCategoriesToRollUp>
-        <Version>4.0.45</Version>
+        <Version>4.0.46</Version>
     </TemplateData>
     <TemplateContent>
         <ProjectItem SubType="" TargetFileName="$fileinputname$.tt" ReplaceParameters="false">Database.tt</ProjectItem>
         <ProjectItem SubType="" TargetFileName="EF.Reverse.POCO.v4.ttinclude" ReplaceParameters="false">EF.Reverse.POCO.v4.ttinclude</ProjectItem>
     </TemplateContent>
     <WizardExtension>
-        <Assembly>EntityFramework Reverse POCO Generator, Version=4.0.45.0, Culture=neutral, PublicKeyToken=null</Assembly>
+        <Assembly>EntityFramework Reverse POCO Generator, Version=4.0.46.0, Culture=neutral, PublicKeyToken=null</Assembly>
         <FullClassName>EntityFramework_Reverse_POCO_Generator.ReversePocoWizard</FullClassName>
     </WizardExtension>
 </VSTemplate>

@@ -1,6 +1,6 @@
 {
   "metadataVersion": 1,
-  "generatorVersion": "4.0.45",
+  "generatorVersion": "4.0.46",
   "templateVersion": "v4",
   "include": "EF.Reverse.POCO.v4.ttinclude",
   "settings": [
