@@ -334,7 +334,7 @@ namespace Efrpg.PostgreSQL
         public IQueryable<ChildrenOfReturnModel> ChildrenOf(int? parentKeyOne = null, int? parentKeyTwo = null)
         {
             return Set<ChildrenOfReturnModel>()
-                .FromSqlRaw("SELECT * FROM [public].[children_of]({0}, {1})", parentKeyOne, parentKeyTwo)
+                .FromSqlRaw("SELECT * FROM [public].[children_of]({0}, {1})", (object?)parentKeyOne ?? DBNull.Value, (object?)parentKeyTwo ?? DBNull.Value)
                 .AsNoTracking();
         }
 
@@ -342,7 +342,7 @@ namespace Efrpg.PostgreSQL
         public IQueryable<CountChildrenReturnModel> CountChildren(int? parentKeyOne, ref int? runningTotal)
         {
             return Set<CountChildrenReturnModel>()
-                .FromSqlRaw("SELECT * FROM [public].[count_children]({0}, {1}, {2})", parentKeyOne, childCount, runningTotal)
+                .FromSqlRaw("SELECT * FROM [public].[count_children]({0}, {1}, {2})", (object?)parentKeyOne ?? DBNull.Value, (object?)childCount ?? DBNull.Value, (object?)runningTotal ?? DBNull.Value)
                 .AsNoTracking();
         }
 

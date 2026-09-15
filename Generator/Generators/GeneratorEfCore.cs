@@ -152,7 +152,11 @@ namespace Efrpg.Generators
 
                 if (Settings.TrimCharFields && c.MaxLength > 1 && c.SqlPropertyType == "char")
                 {
-                    sb.Append(".HasConversion(new ValueConverter<string, string>(v => v.TrimEnd(), v => v.TrimEnd()))");
+                    // A string? property needs a string? converter. EF Core never hands a converter null, but the lambda
+                    // must still allow for it, and an expression tree cannot use '?.'.
+                    sb.Append(c.IsColumnNullable()
+                        ? ".HasConversion(new ValueConverter<string?, string?>(v => v == null ? null : v.TrimEnd(), v => v == null ? null : v.TrimEnd()))"
+                        : ".HasConversion(new ValueConverter<string, string>(v => v.TrimEnd(), v => v.TrimEnd()))");
                 }
             }
 

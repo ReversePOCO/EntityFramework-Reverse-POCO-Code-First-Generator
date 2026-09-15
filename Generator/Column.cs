@@ -131,7 +131,8 @@ namespace Efrpg
         public bool IsColumnNullable()
         {
             if (!IsNullable) return false;
-            if (NotNullable.Contains(PropertyType.ToLower())) return false;
+            // Everything in NotNullable is a reference type, and AllowNullStrings is what switches its '?' annotation on
+            if (NotNullable.Contains(PropertyType.ToLower())) return Settings.AllowNullStrings;
             // JSON-mapped types are reference types (classes); only make nullable when AllowNullStrings is enabled
             if (IsJsonMapped && !Settings.AllowNullStrings) return false;
             return true;

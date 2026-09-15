@@ -99,6 +99,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ColumnDefaultTests.cs" />
+    <Compile Include="ColumnNullabilityTests.cs" />
     <Compile Include="DocSamples\DocSampleCatalogue.cs" />
     <Compile Include="DocSamples\DocSampleExtractor.cs" />
     <Compile Include="DocSamples\DocSampleRunner.cs" />
@@ -148,6 +149,7 @@
     <Compile Include="PluralisationTests.cs" />
     <Compile Include="ProjectNamespaceTests.cs" />
     <Compile Include="DecimalPrecisionTests.cs" />
+    <Compile Include="TrimCharFieldsTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

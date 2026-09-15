@@ -125,7 +125,7 @@ namespace Efrpg.V9SpacedTvfDa
         public IQueryable<SpacedColumnTvfReturnModel> SpacedColumnTvf(int? id = null)
         {
             return Set<SpacedColumnTvfReturnModel>()
-                .FromSqlRaw("SELECT * FROM [dbo].[SpacedColumnTvf]({0})", id)
+                .FromSqlRaw("SELECT * FROM [dbo].[SpacedColumnTvf]({0})", (object?)id ?? DBNull.Value)
                 .AsNoTracking();
         }
     }

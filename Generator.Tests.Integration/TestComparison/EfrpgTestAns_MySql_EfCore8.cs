@@ -267,7 +267,7 @@ namespace Efrpg.MySql
 
             var procResultParam = new MySqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [EfrpgTest].[GetChildrenByParent] parentKeyOne, parentKeyTwo",  new[] {(object?)parentKeyOneParam, (object?)parentKeyTwoParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [EfrpgTest].[GetChildrenByParent] parentKeyOne, parentKeyTwo",  new[] {parentKeyOneParam, parentKeyTwoParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -327,7 +327,7 @@ namespace Efrpg.MySql
 
             var procResultParam = new MySqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [EfrpgTest].[ReservedWordParams] SelectValue, ClassValue, NamespaceValue",  new[] {(object?)selectValueParam, (object?)classValueParam, (object?)namespaceValueParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [EfrpgTest].[ReservedWordParams] SelectValue, ClassValue, NamespaceValue",  new[] {selectValueParam, classValueParam, namespaceValueParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -1504,8 +1504,8 @@ namespace Efrpg.MySql
         public string? EnumCol { get; set; } // EnumCol (length: 6)
         public string? SetCol { get; set; } // SetCol (length: 14)
         public string? JsonCol { get; set; } // JsonCol
-        public NetTopologySuite.Geometries.Geometry GeometryCol { get; set; } // GeometryCol
-        public NetTopologySuite.Geometries.Point PointCol { get; set; } // PointCol
+        public NetTopologySuite.Geometries.Geometry? GeometryCol { get; set; } // GeometryCol
+        public NetTopologySuite.Geometries.Point? PointCol { get; set; } // PointCol
     }
 
     // CATEGORIES

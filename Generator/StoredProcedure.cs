@@ -133,10 +133,7 @@ namespace Efrpg
                 var isInParam = p.Mode == StoredProcedureParameterMode.In;
                 var isOptional = isInParam && count >= firstOptionalIndex;
                 var isReferenceType = Column.StoredProcedureNotNullable.Contains(p.PropertyType.ToLower());
-
-                // A string param with a NULL DB default becomes nullable (string?) only when AllowNullStrings is enabled.
-                // NullableReverseNavigationProperties only controls reverse nav props, not SP parameter types.
-                var makeNullable = !isReferenceType || (useDbDefaults && isOptional && p.DefaultValue == null && Settings.AllowNullStrings);
+                var makeNullable = IsNullableInSignature(p);
 
                 string defaultSuffix;
                 if (!isOptional)
@@ -168,6 +165,22 @@ namespace Efrpg
                 sb.Length -= 2;
 
             return sb.ToString();
+        }
+
+        // Whether the generated method declares this parameter with '?'. It depends on the parameter alone, so every
+        // overload, the interface and the fake context agree; otherwise one passes a string? to another's string.
+        // A reference type is only annotated under AllowNullStrings, and only when NULL is a legitimate value: its
+        // database default is NULL, or it is INOUT and so comes back NULL whenever the database says so.
+        // NullableReverseNavigationProperties only controls reverse nav props, not SP parameter types.
+        private static bool IsNullableInSignature(StoredProcedureParameter p)
+        {
+            if (!Column.StoredProcedureNotNullable.Contains(p.PropertyType.ToLower()))
+                return true;
+
+            if (!Settings.AllowNullStrings)
+                return false;
+
+            return p.Mode == StoredProcedureParameterMode.InOut || (p.HasDefault && p.DefaultValue == null);
         }
 
         // Converts a StoredProcedureParameter's stored DefaultValue to a valid C# literal.
@@ -435,14 +448,14 @@ namespace Efrpg
             if (IsEfCore8Plus && (hasParam || includeProcResultParam))
                 sb.Append(" new[] {");
 
-            var needsNullForgiving = Settings.NeedsNullForgiving();
+            var coalesceNulls = !appendParam && Settings.NeedsNullForgiving();
             foreach (var p in Parameters.OrderBy(x => x.Ordinal))
             {
                 var paramName = string.Format("{0}{1}", p.NameHumanCase, appendParam ? "Param" : string.Empty);
-                // Cast to (object?) to allow null values when nullable string params are used (AllowNullStrings only).
-                // NullableReverseNavigationProperties does not make SP params nullable, so no cast needed for it.
-                if (IsEfCore8Plus && Settings.AllowNullStrings)
-                    paramName = string.Format("(object?){0}", paramName);
+                // Without the Param suffix these are a TVF's raw arguments to FromSqlRaw's params object[], whose
+                // elements are non-nullable under NRT. EF Core maps DBNull.Value to the same NULL parameter as null.
+                if (coalesceNulls && IsNullableInSignature(p))
+                    paramName = string.Format("(object?){0} ?? DBNull.Value", paramName);
                 sb.Append(string.Format("{0}, ", paramName));
                 hasParam = true;
             }

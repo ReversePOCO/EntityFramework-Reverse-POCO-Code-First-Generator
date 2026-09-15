@@ -80,9 +80,12 @@ namespace Efrpg.Gui.Tests
         }
 
         /// <summary>The wiki checkout beside this repository, or null on a machine that has only the generator.</summary>
-        public static string WikiFolder()
+        public static string? WikiFolder()
         {
             var root = new DirectoryInfo(RepositoryRoot.Value);
+            if (root.Parent == null)
+                return null;
+
             var wiki = Path.Combine(root.Parent.FullName, root.Name + ".wiki");
 
             return Directory.Exists(wiki) ? wiki : null;

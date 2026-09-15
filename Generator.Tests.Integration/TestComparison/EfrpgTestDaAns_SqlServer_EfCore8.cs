@@ -230,7 +230,7 @@ namespace Efrpg.V3TestE8Db
         int ColumnNameAndTypesProc();
         Task<int> ColumnNameAndTypesProcAsync(CancellationToken cancellationToken = default(CancellationToken));
 
-        int ConvertToString(int? someValue, ref string someString);
+        int ConvertToString(int? someValue, ref string? someString);
         // ConvertToStringAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
         List<DboProcDataFromFfrsReturnModel> DboProcDataFromFfrs(int? maxId);
@@ -308,9 +308,9 @@ namespace Efrpg.V3TestE8Db
         List<SpNullableStringReproReturnModel> SpNullableStringRepro(out int procResult);
         Task<List<SpNullableStringReproReturnModel>> SpNullableStringReproAsync(CancellationToken cancellationToken = default(CancellationToken));
 
-        List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string clientNameNull, string clientNameMaxNull, string clientDesc, string clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull);
-        List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string clientNameNull, string clientNameMaxNull, string clientDesc, string clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull, out int procResult);
-        Task<List<StoredProcWithDefaultsReturnModel>> StoredProcWithDefaultsAsync(int? userId, int? userIdNull, string clientName, string clientNameNull, string clientNameMaxNull, string clientDesc, string clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull, CancellationToken cancellationToken = default(CancellationToken));
+        List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string? clientNameNull, string? clientNameMaxNull, string clientDesc, string? clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull);
+        List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string? clientNameNull, string? clientNameMaxNull, string clientDesc, string? clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull, out int procResult);
+        Task<List<StoredProcWithDefaultsReturnModel>> StoredProcWithDefaultsAsync(int? userId, int? userIdNull, string clientName, string? clientNameNull, string? clientNameMaxNull, string clientDesc, string? clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull, CancellationToken cancellationToken = default(CancellationToken));
 
         List<StpMultipleIdenticalResultsReturnModel> StpMultipleIdenticalResults(int? someVar);
         List<StpMultipleIdenticalResultsReturnModel> StpMultipleIdenticalResults(int? someVar, out int procResult);
@@ -741,7 +741,7 @@ namespace Efrpg.V3TestE8Db
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[AddTwoValues] @a, @b",  new[] {(object?)aParam, (object?)bParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[AddTwoValues] @a, @b",  new[] {aParam, bParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -804,7 +804,7 @@ namespace Efrpg.V3TestE8Db
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [Alpha].[Overclock] @Parameter",  new[] {(object?)parameterParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [Alpha].[Overclock] @Parameter",  new[] {parameterParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -886,7 +886,7 @@ namespace Efrpg.V3TestE8Db
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [Beta].[Overclock] @Parameter",  new[] {(object?)parameterParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [Beta].[Overclock] @Parameter",  new[] {parameterParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -974,7 +974,7 @@ namespace Efrpg.V3TestE8Db
             return (int)procResultParam.Value;
         }
 
-        public int ConvertToString(int? someValue, ref string someString)
+        public int ConvertToString(int? someValue, ref string? someString)
         {
             var someValueParam = new SqlParameter { ParameterName = "@someValue", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Input, Value = someValue.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!someValue.HasValue)
@@ -1427,7 +1427,7 @@ namespace Efrpg.V3TestE8Db
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[NvarcharTest] @maxOutputParam, @normalOutputParam",  new[] {(object?)maxOutputParamParam, (object?)normalOutputParamParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[NvarcharTest] @maxOutputParam, @normalOutputParam",  new[] {maxOutputParamParam, normalOutputParamParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -1453,7 +1453,7 @@ namespace Efrpg.V3TestE8Db
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [Omega].[Overclock] @Parameter",  new[] {(object?)parameterParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [Omega].[Overclock] @Parameter",  new[] {parameterParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -1565,7 +1565,7 @@ namespace Efrpg.V3TestE8Db
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[SpatialTypesWithParams] @geometry, @geography",  new[] {(object?)geometryParam, (object?)geographyParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[SpatialTypesWithParams] @geometry, @geography",  new[] {geometryParam, geographyParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -1604,7 +1604,7 @@ namespace Efrpg.V3TestE8Db
             return StoredProcWithDefaults(userId, userIdNull, clientName, clientNameNull, clientNameMaxNull, clientDesc, clientDescNull, decimalValue, decimalValueNull, money, moneyNull, smallMoney, smallMoneyNull, realValue, realValueNull, floatValue, floatValueNull, out procResult);
         }
 
-        public List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string clientNameNull, string clientNameMaxNull, string clientDesc, string clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull, out int procResult)
+        public List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string? clientNameNull, string? clientNameMaxNull, string clientDesc, string? clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull, out int procResult)
         {
             var userIdParam = new SqlParameter { ParameterName = "@UserId", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Input, Value = userId.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!userId.HasValue)
@@ -2070,7 +2070,7 @@ namespace Efrpg.V3TestE8Db
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[StupidStoredProcedureParams] @ReqType, @Dept, @Class, @Item",  new[] {(object?)reqTypeParam, (object?)deptParam, (object?)@classParam, (object?)itemParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[StupidStoredProcedureParams] @ReqType, @Dept, @Class, @Item",  new[] {reqTypeParam, deptParam, @classParam, itemParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -2120,7 +2120,7 @@ namespace Efrpg.V3TestE8Db
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[StupidStoredProcedureParams2] @override, @readonly, @class, @enum",  new[] {(object?)@overrideParam, (object?)@readonlyParam, (object?)@classParam, (object?)@enumParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[StupidStoredProcedureParams2] @override, @readonly, @class, @enum",  new[] {@overrideParam, @readonlyParam, @classParam, @enumParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -2267,7 +2267,7 @@ namespace Efrpg.V3TestE8Db
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[UserDefinedTypeSampleStoredProc] @a, @type, @b",  new[] {(object?)aParam, (object?)typeParam, (object?)bParam, procResultParam}, cancellationToken);
+            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[UserDefinedTypeSampleStoredProc] @a, @type, @b",  new[] {aParam, typeParam, bParam, procResultParam}, cancellationToken);
 
             return (int)procResultParam.Value;
         }
@@ -2325,7 +2325,7 @@ namespace Efrpg.V3TestE8Db
         public IQueryable<C182Test1ReturnModel> C182Test1(int? test = null)
         {
             return Set<C182Test1ReturnModel>()
-                .FromSqlRaw("SELECT * FROM [dbo].[182_test1]({0})", test)
+                .FromSqlRaw("SELECT * FROM [dbo].[182_test1]({0})", (object?)test ?? DBNull.Value)
                 .AsNoTracking();
         }
 
@@ -2357,7 +2357,7 @@ namespace Efrpg.V3TestE8Db
         public IQueryable<SpacedColumnTvfReturnModel> SpacedColumnTvf(int? id = null)
         {
             return Set<SpacedColumnTvfReturnModel>()
-                .FromSqlRaw("SELECT * FROM [dbo].[SpacedColumnTvf]({0})", id)
+                .FromSqlRaw("SELECT * FROM [dbo].[SpacedColumnTvf]({0})", (object?)id ?? DBNull.Value)
                 .AsNoTracking();
         }
 
@@ -3000,7 +3000,7 @@ namespace Efrpg.V3TestE8Db
             return Task.FromResult(0);
         }
 
-        public int ConvertToString(int? someValue, ref string someString)
+        public int ConvertToString(int? someValue, ref string? someString)
         {
             someString = default(string);
             return 0;
@@ -3302,7 +3302,7 @@ namespace Efrpg.V3TestE8Db
             return StoredProcWithDefaults(userId, userIdNull, clientName, clientNameNull, clientNameMaxNull, clientDesc, clientDescNull, decimalValue, decimalValueNull, money, moneyNull, smallMoney, smallMoneyNull, realValue, realValueNull, floatValue, floatValueNull, out procResult);
         }
 
-        public List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string clientNameNull, string clientNameMaxNull, string clientDesc, string clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull, out int procResult)
+        public List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string? clientNameNull, string? clientNameMaxNull, string clientDesc, string? clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull, out int procResult)
         {
             procResult = 0;
             return new List<StoredProcWithDefaultsReturnModel>();
@@ -5419,10 +5419,10 @@ namespace Efrpg.V3TestE8Db
         public int? Brandon { get; set; } // brandon
 
         [Display(Name = "Geography type")]
-        public NetTopologySuite.Geometries.Point GeographyType { get; set; } // GeographyType
+        public NetTopologySuite.Geometries.Point? GeographyType { get; set; } // GeographyType
 
         [Display(Name = "Geometry type")]
-        public NetTopologySuite.Geometries.Geometry GeometryType { get; set; } // GeometryType
+        public NetTopologySuite.Geometries.Geometry? GeometryType { get; set; } // GeometryType
 
         public ColumnNameAndType()
         {

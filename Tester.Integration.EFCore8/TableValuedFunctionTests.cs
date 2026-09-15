@@ -79,5 +79,19 @@ namespace Tester.Integration.EFCore8
             Assert.AreEqual("test value", data[0].MyColumn, "MyColumn (mapped from 'My Column') should be 'test value'");
             Assert.AreEqual(true, data[0].IsActive, "IsActive (mapped from 'Is Active') should be true");
         }
+
+        [Test]
+        [Description("Under AllowNullStrings a null TVF argument reaches FromSqlRaw as DBNull.Value; [dbo].[182_test1] ignores @test")]
+        public void C182Test1_NullArgument_ReturnsEveryRow()
+        {
+            // Arrange
+            using var db = new V8EfrpgTestDbContext();
+
+            // Act
+            var data = db.C182Test1(null).ToList();
+
+            // Assert
+            Assert.That(data, Is.Not.Empty);
+        }
     }
 }

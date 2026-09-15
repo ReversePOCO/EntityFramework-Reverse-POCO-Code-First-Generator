@@ -2346,7 +2346,7 @@ namespace Efrpg.V3TestE8c
         public IQueryable<C182Test1ReturnModel> C182Test1(int? test = null)
         {
             return Set<C182Test1ReturnModel>()
-                .FromSqlRaw("SELECT * FROM [dbo].[182_test1]({0})", test)
+                .FromSqlRaw("SELECT * FROM [dbo].[182_test1]({0})", (object?)test ?? DBNull.Value)
                 .AsNoTracking();
         }
 
@@ -2378,7 +2378,7 @@ namespace Efrpg.V3TestE8c
         public IQueryable<SpacedColumnTvfReturnModel> SpacedColumnTvf(int? id = null)
         {
             return Set<SpacedColumnTvfReturnModel>()
-                .FromSqlRaw("SELECT * FROM [dbo].[SpacedColumnTvf]({0})", id)
+                .FromSqlRaw("SELECT * FROM [dbo].[SpacedColumnTvf]({0})", (object?)id ?? DBNull.Value)
                 .AsNoTracking();
         }
 

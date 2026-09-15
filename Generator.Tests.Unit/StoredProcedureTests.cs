@@ -546,6 +546,91 @@ AS BEGIN SELECT 1 END";
         }
 
         // -----------------------------------------------------------------------
+        // Nullable warnings in generated EF Core code under AllowNullStrings
+        // (the file carries '#nullable enable', so every mismatch is a warning).
+        // -----------------------------------------------------------------------
+
+        [Test]
+        [Description("CS8620 - the array holds SqlParameter locals, which are never null, so an (object?) cast only made it object?[]")]
+        public void WriteStoredProcFunctionSqlParameterAnonymousArray_EfCore8PlusWithAllowNullStrings_DoesNotCastToNullableObject()
+        {
+            // Arrange
+            Settings.AllowNullStrings = true;
+
+            // Act
+            var result = _sut.WriteStoredProcFunctionSqlParameterAnonymousArray(true, true, true, true);
+
+            // Assert
+            Assert.That(result, Is.EqualTo(",  new[] {AParam, BParam, CParam, XParam, DParam, procResultParam}, cancellationToken"));
+        }
+
+        [Description("CS8604 - a NULL-default string must be string? in every overload, or the short overload passes string? to string")]
+        [TestCase(false, false, "int? userId, string? referringUrl = null")]
+        [TestCase(true,  false, "int? userId, string? referringUrl, out int procResult")]
+        [TestCase(false, true,  "int? userId, string? referringUrl")]
+        [TestCase(true,  true,  "int? userId, string? referringUrl, out int procResult")]
+        public void WriteStoredProcFunctionParams_StringNullDefaultWithAllowNullStrings_IsNullableInEveryOverload(bool includeProcResult, bool forInterface, string expected)
+        {
+            // Arrange
+            Settings.AllowNullStrings = true;
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { new DataColumn("Id", typeof(int)) } };
+            _sut.Parameters = new List<StoredProcedureParameter>
+            {
+                new StoredProcedureParameter { Mode = StoredProcedureParameterMode.In, PropertyType = "int",    NameHumanCase = "userId",       Ordinal = 1 },
+                new StoredProcedureParameter { Mode = StoredProcedureParameterMode.In, PropertyType = "string", NameHumanCase = "referringUrl", Ordinal = 2, HasDefault = true, DefaultValue = null },
+            };
+
+            // Act
+            var result = _sut.WriteStoredProcFunctionParams(includeProcResult, forInterface);
+
+            // Assert
+            Assert.That(result, Is.EqualTo(expected));
+        }
+
+        [Description("CS8625 - an INOUT string comes back NULL whenever the database returns NULL, and the generated code assigns that to the ref argument")]
+        [TestCase(true,  "int? someValue, ref string? someString")]
+        [TestCase(false, "int? someValue, ref string someString")]
+        public void WriteStoredProcFunctionParams_InOutString_IsNullableOnlyWithAllowNullStrings(bool allowNullStrings, string expected)
+        {
+            // Arrange
+            Settings.AllowNullStrings = allowNullStrings;
+            _sut.Parameters = new List<StoredProcedureParameter>
+            {
+                new StoredProcedureParameter { Mode = StoredProcedureParameterMode.In,    PropertyType = "int",    NameHumanCase = "someValue",  Ordinal = 1 },
+                new StoredProcedureParameter { Mode = StoredProcedureParameterMode.InOut, PropertyType = "string", NameHumanCase = "someString", Ordinal = 2 },
+            };
+
+            // Act
+            var result = _sut.WriteStoredProcFunctionParams(false, false);
+
+            // Assert
+            Assert.That(result, Is.EqualTo(expected));
+        }
+
+        [Description("CS8604 - a TVF passes its arguments straight to FromSqlRaw's params object[], whose elements are non-nullable under NRT")]
+        [TestCase(true,  ", (object?)id ?? DBNull.Value, name, (object?)filter ?? DBNull.Value")]
+        [TestCase(false, ", id, name, filter")]
+        public void WriteStoredProcFunctionSqlParameterAnonymousArray_TvfArguments_CoalesceNullableArgumentsOnlyUnderNrt(bool allowNullStrings, string expected)
+        {
+            // Arrange
+            Settings.AllowNullStrings = allowNullStrings;
+            _sut.IsStoredProcedure     = false;
+            _sut.IsTableValuedFunction = true;
+            _sut.Parameters = new List<StoredProcedureParameter>
+            {
+                new StoredProcedureParameter { Mode = StoredProcedureParameterMode.In, PropertyType = "int",    NameHumanCase = "id",     Ordinal = 1 },
+                new StoredProcedureParameter { Mode = StoredProcedureParameterMode.In, PropertyType = "string", NameHumanCase = "name",   Ordinal = 2 },
+                new StoredProcedureParameter { Mode = StoredProcedureParameterMode.In, PropertyType = "string", NameHumanCase = "filter", Ordinal = 3, HasDefault = true, DefaultValue = null },
+            };
+
+            // Act
+            var result = _sut.WriteStoredProcFunctionSqlParameterAnonymousArray(false, false);
+
+            // Assert
+            Assert.That(result, Is.EqualTo(expected));
+        }
+
+        // -----------------------------------------------------------------------
         // Issue #885 - stored proc return model columns must respect DB nullability
         // under nullable reference types, otherwise EF Core 8+ infers the column as
         // required and throws SqlNullValueException when the database returns NULL.
