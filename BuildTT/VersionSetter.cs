@@ -75,6 +75,7 @@ namespace BuildTT
             // here as a string literal as well, and the two drifted - SQLite, MySQL and Oracle reached
             // Tags.txt but not the manifest, which is the copy the marketplace actually reads.
             var tags = File.ReadAllText(Path.Combine(_root, "EntityFramework Reverse POCO Generator\\Tags.txt")).Trim();
+            var repoUrl = "https://github.com/ReversePOCO/EntityFramework-Reverse-POCO-Code-First-Generator";
 
             using (var tt = File.CreateText(filename))
             {
@@ -83,9 +84,28 @@ namespace BuildTT
                 tt.WriteLine("    <Metadata>");
                 tt.WriteLine($"        <Identity Id=\"EntityFramework_Reverse_POCO_Generator..d542a934-8bd6-4136-b490-5f0049d62033\" Version=\"{_version}\" Language=\"en-US\" Publisher=\"Simon Hughes\" />");
                 tt.WriteLine("        <DisplayName>EntityFramework Reverse POCO Generator</DisplayName>");
-                tt.WriteLine("        <Description xml:space=\"preserve\">Reverse engineers an existing database and generates EntityFramework Code First POCO classes, Configuration mappings and DbContext.</Description>");
-                tt.WriteLine("        <MoreInfo>https://github.com/ReversePOCO/EntityFramework-Reverse-POCO-Code-First-Generator</MoreInfo>");
+                // Shown in the Extension Manager. xml:space="preserve" keeps the line breaks, so the text lines
+                // start in column 0.
+                tt.WriteLine("        <Description xml:space=\"preserve\">" +
+                             "Reverse engineers an existing database and generates Entity Framework Code First POCO classes, configuration mappings, " +
+                             "enumerations, DbContext, FakeDbContext (for easy unit testing) and calls to stored procedures and table-valued functions.");
+                tt.WriteLine();
+                tt.WriteLine("Supports EF Core 8, 9 and 10, and EF6. Databases: SQL Server, PostgreSQL, MySQL / MariaDB, Oracle and SQLite.");
+                tt.WriteLine();
+                tt.WriteLine("Add it to a project with Add - New Item, and search for reverse poco. Right-click the .tt file in Solution Explorer for:");
+                tt.WriteLine("- Connection - set the database connection");
+                tt.WriteLine("- Choose tables and procedures - pick the objects to generate");
+                tt.WriteLine("- All settings - edit every template setting, with code previews");
+                tt.WriteLine("- Upgrade this template to v4 - migrate a v3 template");
+                tt.WriteLine("- Check efrpg tool - confirm the schema reader is installed");
+                tt.WriteLine();
+                tt.WriteLine("Requires the efrpg dotnet tool: dotnet tool install -g Efrpg</Description>");
+                tt.WriteLine($"        <MoreInfo>{repoUrl}</MoreInfo>");
+                // The schema fixes the element order: License before GettingStartedGuide and ReleaseNotes, or the
+                // build fails with VSSDK1062.
                 tt.WriteLine("        <License>license.txt</License>");
+                tt.WriteLine($"        <GettingStartedGuide>{repoUrl}#installation</GettingStartedGuide>");
+                tt.WriteLine($"        <ReleaseNotes>{repoUrl}/releases</ReleaseNotes>");
                 tt.WriteLine("        <Icon>TemplateIcon.ico</Icon>");
                 tt.WriteLine("        <PreviewImage>PreviewImage.png</PreviewImage>");
                 tt.WriteLine($"        <Tags>{tags}</Tags>");
@@ -97,14 +117,13 @@ namespace BuildTT
                 // never needs touching again for a new major release. VS 2022 still uses the old product-range
                 // model, and an open range satisfies it too. VS 2017 and 2019 are no longer targeted: the package
                 // which predate all of this.
+                // Community alone covers Pro and Enterprise: a lower SKU target installs into every higher one. arm64
+                // is free because the package is AnyCPU managed code and efrpg reads the database out of process.
                 tt.WriteLine("        <InstallationTarget Version=\"[17.0,)\" Id=\"Microsoft.VisualStudio.Community\">");
                 tt.WriteLine("            <ProductArchitecture>amd64</ProductArchitecture>");
                 tt.WriteLine("        </InstallationTarget>");
-                tt.WriteLine("        <InstallationTarget Version=\"[17.0,)\" Id=\"Microsoft.VisualStudio.Pro\">");
-                tt.WriteLine("            <ProductArchitecture>amd64</ProductArchitecture>");
-                tt.WriteLine("        </InstallationTarget>");
-                tt.WriteLine("        <InstallationTarget Version=\"[17.0,)\" Id=\"Microsoft.VisualStudio.Enterprise\">");
-                tt.WriteLine("            <ProductArchitecture>amd64</ProductArchitecture>");
+                tt.WriteLine("        <InstallationTarget Version=\"[17.0,)\" Id=\"Microsoft.VisualStudio.Community\">");
+                tt.WriteLine("            <ProductArchitecture>arm64</ProductArchitecture>");
                 tt.WriteLine("        </InstallationTarget>");
                 tt.WriteLine("    </Installation>");
                 tt.WriteLine("    <Assets>");
@@ -122,8 +141,8 @@ namespace BuildTT
                 tt.WriteLine("        <Asset Type=\"Microsoft.VisualStudio.MefComponent\" d:Source=\"Project\" d:ProjectName=\"%CurrentProject%\" Path=\"|%CurrentProject%|\" />");
                 tt.WriteLine("    </Assets>");
                 tt.WriteLine("    <Prerequisites>");
-                tt.WriteLine("        <Prerequisite Id=\"Microsoft.VisualStudio.Component.TextTemplating\" Version=\"[15.0,)\" DisplayName=\"Text Template Transformation\" />");
-                tt.WriteLine("        <Prerequisite Id=\"Microsoft.VisualStudio.Component.CoreEditor\" Version=\"[15.0,)\" DisplayName=\"Visual Studio core editor\" />");
+                tt.WriteLine("        <Prerequisite Id=\"Microsoft.VisualStudio.Component.TextTemplating\" Version=\"[17.0,)\" DisplayName=\"Text Template Transformation\" />");
+                tt.WriteLine("        <Prerequisite Id=\"Microsoft.VisualStudio.Component.CoreEditor\" Version=\"[17.0,)\" DisplayName=\"Visual Studio core editor\" />");
                 tt.WriteLine("    </Prerequisites>");
                 tt.Write("</PackageManifest>");
             }

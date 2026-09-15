@@ -1,1 +1,1 @@
-﻿Reverse Poco, Data, Entity Framework, Code Generator, Database, reverse engineering, C#, SQL Server, PostgreSQL, SQLite, MySQL, Oracle, POCO, Code First, CodeFirst
+﻿EF Core, Entity Framework, Scaffolding, SQL Server, PostgreSQL, Oracle, MySQL, MariaDB, SQLite
