@@ -1,4 +1,4 @@
-﻿<#@ include file="EF.Reverse.POCO.v4.ttinclude" #>
+<#@ include file="EF.Reverse.POCO.v4.ttinclude" #>
 <#
     // v4.0.45
     // Please make changes to the settings below.
@@ -113,7 +113,7 @@
     Settings.UseRegions                          = true;  // If false, suppresses the use of #region
     Settings.UseNamespace                        = true;  // If false, suppresses the writing of a namespace
     Settings.UsePragma                           = false; // If false, suppresses the writing of #pragma
-    Settings.AllowNullStrings                    = false; // If true, will allow string? properties and will add '#nullable enable' to the top of each file
+    Settings.AllowNullStrings                    = true; // If true, will allow string? properties and will add '#nullable enable' to the top of each file
     Settings.NullableReverseNavigationProperties = true;  // If true, reverse navigation properties for one-to-one relationships will be nullable (e.g. MyEntity? MyEntity). The parent entity can exist without the child entity.
     Settings.UseResharper                        = true;  // If true, will add a list of 'ReSharper disable' comments to the top of each file
     Settings.ShowLicenseInfo                     = false; // If true, will add the licence info comment to the top of each file

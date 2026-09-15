@@ -53,9 +53,9 @@ namespace Tester.Integration.EFCore10
             var result = _dbSet.Find(id);
 
             Assert.IsNotNull(result);
-            Assert.AreEqual(id, result.AId);
-            Assert.AreEqual(c1, result.C1);
-            Assert.AreEqual(c2, result.C2);
+            Assert.AreEqual(id, result?.AId);
+            Assert.AreEqual(c1, result?.C1);
+            Assert.AreEqual(c2, result?.C2);
         }
 
         [Test]
@@ -64,14 +64,14 @@ namespace Tester.Integration.EFCore10
         public async Task FindAsync_CancellationToken(int id, int c1, int c2)
         {
             await _dbSet.AddRangeAsync(_list);
-            var cancellationToken = new CancellationToken();
+            var cancellationToken = CancellationToken.None;
             object[] keyValues = { id };
             var result = await _dbSet.FindAsync(keyValues, cancellationToken);
 
             Assert.IsNotNull(result);
-            Assert.AreEqual(id, result.AId);
-            Assert.AreEqual(c1, result.C1);
-            Assert.AreEqual(c2, result.C2);
+            Assert.AreEqual(id, result?.AId);
+            Assert.AreEqual(c1, result?.C1);
+            Assert.AreEqual(c2, result?.C2);
         }
         
         [Test]
@@ -83,9 +83,9 @@ namespace Tester.Integration.EFCore10
             var result = await _dbSet.FindAsync(id);
 
             Assert.IsNotNull(result);
-            Assert.AreEqual(id, result.AId);
-            Assert.AreEqual(c1, result.C1);
-            Assert.AreEqual(c2, result.C2);
+            Assert.AreEqual(id, result?.AId);
+            Assert.AreEqual(c1, result?.C1);
+            Assert.AreEqual(c2, result?.C2);
         }
 
         [Test]
@@ -178,7 +178,7 @@ namespace Tester.Integration.EFCore10
             Assert.AreEqual(2, _dbSet.Count());
 
             var result = _dbSet.Find(_list[0].AId);
-            Assert.AreEqual(987, result.C1);
+            Assert.AreEqual(987, result?.C1);
         }
 
         [Test]
@@ -191,10 +191,10 @@ namespace Tester.Integration.EFCore10
             Assert.AreEqual(2, _dbSet.Count());
 
             var result = _dbSet.Find(_list[0].AId);
-            Assert.AreEqual(987, result.C1);
+            Assert.AreEqual(987, result?.C1);
 
             result = _dbSet.Find(_list[1].AId);
-            Assert.AreEqual(_list[1].C1, result.C1);
+            Assert.AreEqual(_list[1].C1, result?.C1);
         }
 
         [Test]

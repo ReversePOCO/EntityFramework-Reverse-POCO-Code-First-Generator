@@ -83,7 +83,7 @@ namespace Efrpg.Generators
         protected abstract string GetCascadeOnDelete(bool cascadeOnDelete);
         protected abstract string GetForeignKeyConstraintName(string foreignKeyConstraintName);
 
-        private bool _hasAcademicLicence;
+        private LicenceType _licenceType;
         private bool _hasTrialLicence;
         private FileHeaderFooter _fileHeaderFooter;
         private readonly StringBuilder _preHeaderInfo;
@@ -141,7 +141,7 @@ namespace Efrpg.Generators
                 Settings.AdditionalNamespaces.Add("System.ComponentModel.DataAnnotations.Schema");
             }
 
-            _hasAcademicLicence = licence.LicenceType == LicenceType.Academic;
+            _licenceType = licence.LicenceType;
             _hasTrialLicence = licence.LicenceType == LicenceType.Trial;
             InitialisationOk = FilterList.ReadDbContextSettings(_result, singleDbContextSubNamespace);
             _fileManagementService.Init(FilterList.GetFilters());
@@ -1851,6 +1851,30 @@ namespace Efrpg.Generators
             _fileManagementService.ForceWriteToOuter = false;
         }
 
+        /// <summary>
+        ///     The comment banner written above the first class in each group of generated code, without indentation. Empty
+        ///     when the licence needs no banner.
+        /// </summary>
+        public static List<string> LicenceBanner(LicenceType licenceType)
+        {
+            const string rule = "// ****************************************************************************************************";
+
+            switch (licenceType)
+            {
+                case LicenceType.Commercial:
+                    return new List<string>();
+
+                case LicenceType.Academic:
+                    return new List<string> { rule, "// Academic licence: for classroom learning and academic purposes only. Not for commercial use.", rule };
+
+                case LicenceType.Trial:
+                    return new List<string> { rule, "// This is not a commercial licence, therefore only a few tables/views/stored procedures are generated.", rule };
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(licenceType), licenceType, null);
+            }
+        }
+
         private List<string> IndentCode(CodeOutput output, string regionNameForGroup, bool firstInGroup, bool lastInGroup)
         {
             if (output == null)
@@ -1874,11 +1898,10 @@ namespace Efrpg.Generators
                 }
             }
 
-            if (firstInGroup && (_hasAcademicLicence || _hasTrialLicence))
+            var banner = firstInGroup ? LicenceBanner(_licenceType) : new List<string>();
+            if (banner.Count > 0)
             {
-                lines.Add(IndentedStringBuilder(indentNum, "// ****************************************************************************************************"));
-                lines.Add(IndentedStringBuilder(indentNum, "// This is not a commercial licence, therefore only a few tables/views/stored procedures are generated."));
-                lines.Add(IndentedStringBuilder(indentNum, "// ****************************************************************************************************"));
+                lines.AddRange(IndentedStringBuilder(indentNum, banner));
                 lines.Add(null);
             }
 

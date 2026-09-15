@@ -366,6 +366,7 @@ namespace Generator.Tests.Unit.DocSamples
             var t = line.Trim();
             return t.StartsWith("// ****")
                 || t.StartsWith("// This is not a commercial licence")
+                || t.StartsWith("// Academic licence")
                 || t.StartsWith("// Licence file")
                 || t.StartsWith("// Your licence file")
                 || t.StartsWith("// Please obtain your licence")
