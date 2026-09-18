@@ -235,6 +235,305 @@ namespace Efrpg.Gui.Tests
             Assert.That(TemplateUpgrade.Upgrade(text).Succeeded, Is.True);
         }
 
+        private static string WithEntryPoint(string tail)
+        {
+            var before = RepositoryFiles.V3Template();
+
+            return before.Substring(0, before.IndexOf("    var outer =", StringComparison.Ordinal)) + tail;
+        }
+
+        /// <summary>
+        ///     The exact tail shipped in v3.2.0 through v3.10.0: the machine.config comment sits inside the if block
+        ///     and is followed by a blank line.
+        /// </summary>
+        [Test]
+        public void TheV39EntryPointWithTheCommentInsideTheIfBlockUpgrades()
+        {
+            var text = WithEntryPoint(
+                "    var outer = (GeneratedTextTransformation) this;\r\n" +
+                "    var fileManagement = new FileManagementService(outer);\r\n" +
+                "    var generator = GeneratorFactory.Create(fileManagement, FileManagerFactory.GetFileManagerType());\r\n" +
+                "    if (generator != null && generator.InitialisationOk)\r\n" +
+                "    {\r\n" +
+                "        // Show where the machine.config file is\r\n" +
+                "        // fileManagement.WriteLine(\"// \" + System.Runtime.InteropServices.RuntimeEnvironment.SystemConfigurationFile);\r\n" +
+                "\r\n" +
+                "        generator.ReadDatabase();\r\n" +
+                "        generator.GenerateCode();\r\n" +
+                "    }\r\n" +
+                "    fileManagement.Process(true);#>");
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Text, Does.EndWith(TemplateUpgrade.V4EntryPoint));
+        }
+
+        /// <summary>
+        ///     A real hand-edited file with its identifiers swapped for Northwind ones: v3.9.0 header, no null check
+        ///     in the entry point, custom filters and callbacks throughout. Everything the user wrote must survive
+        ///     and every removed setting must go.
+        /// </summary>
+        [Test]
+        public void ARealV390CustomerTemplateUpgrades()
+        {
+            var result = TemplateUpgrade.Upgrade(RepositoryFiles.V390CustomerTemplate());
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(result.Text, Does.StartWith("<#@ include file=\"" + TemplateUpgrade.V4Include + "\" #>"));
+            Assert.That(result.Text, Does.EndWith(TemplateUpgrade.V4EntryPoint));
+
+            // Assignments only: a stock file's trailing comments still mention some removed settings in prose.
+            var assigned = result.Text.Replace("\r\n", "\n").Split('\n')
+                .Select(l => System.Text.RegularExpressions.Regex.Match(l, @"^\s*Settings\.(\w+)\s*="))
+                .Where(m => m.Success)
+                .Select(m => m.Groups[1].Value)
+                .ToList();
+
+            Assert.That(assigned, Has.None.EqualTo("FileManagerType"));
+            Assert.That(assigned, Has.None.EqualTo("GeneratorType"));
+            Assert.That(assigned, Has.None.EqualTo("TemplateFolder"));
+            Assert.That(assigned, Has.None.EqualTo("DatabaseReaderPlugin"));
+            Assert.That(assigned, Has.None.EqualTo("GenerationLanguage"));
+            Assert.That(assigned, Has.None.EqualTo("FileExtension"));
+            Assert.That(assigned, Has.None.EqualTo("IncludeQueryTraceOn9481Flag"));
+            Assert.That(assigned, Has.None.EqualTo("GenerateSingleDbContext"));
+            Assert.That(assigned, Has.None.StartsWith("MultiContext"));
+            Assert.That(result.Text, Does.Not.Contain("FileManagerFactory"));
+            Assert.That(result.Text, Does.Not.Contain("allFields"), "a multi-context delegate body was left behind");
+            Assert.That(result.Text, Does.Contain("if (Settings.GenerateSeparateFiles)\r\n"));
+
+            Assert.That(result.Text, Does.Contain("new RegexIncludeFilter(\"^Categories$|Products|Suppliers"), "custom filter kept");
+            Assert.That(result.Text, Does.Contain("\"employees_to_territories\""), "custom foreign key kept");
+            Assert.That(result.Text, Does.Contain("column.ParentTable.NameHumanCase == \"OrderDetail\""), "custom column hiding kept");
+            Assert.That(result.Text, Does.Contain("new CustomPluralizationEntry(\"OrderDetail\""), "custom pluralisation kept");
+            Assert.That(result.Text, Does.Contain("Settings.AdditionalNamespaces               = new List<string>{\"Northwind.Common.Enums\"};"), "custom namespace kept");
+        }
+
+        /// <summary>
+        ///     Between v3.5.0 and v3.6.0 the sub-folder block had no <c>if</c> around it, only a prose comment
+        ///     naming Settings.FileManagerType. Prose is not a compile error and must not block the upgrade.
+        /// </summary>
+        [Test]
+        public void AProseCommentNamingFileManagerTypeDoesNotBlockTheUpgrade()
+        {
+            var before = RepositoryFiles.V3Template();
+            var start  = before.IndexOf("    if (Settings.GenerateSeparateFiles && Settings.FileManagerType", StringComparison.Ordinal);
+            var end    = before.IndexOf("    }\r\n", start, StringComparison.Ordinal) + "    }\r\n".Length;
+            var text   = before.Substring(0, start) +
+                         "    // Only activated if Settings.GenerateSeparateFiles = true && Settings.FileManagerType = FileManagerType.EfCore\r\n" +
+                         "    Settings.ContextFolder           = @\"\";\r\n" +
+                         "    Settings.PocoFolder              = @\"Entities\";\r\n" +
+                         before.Substring(end);
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Text, Does.Contain("// Only activated if Settings.GenerateSeparateFiles = true && Settings.FileManagerType = FileManagerType.EfCore"),
+                "prose is not rewritten");
+        }
+
+        /// <summary>
+        ///     The one delegate whose signature changed: v4 added the JSON column mappings parameter. A three-parameter
+        ///     UpdateColumn is CS1593 against the v4 include, which a real customer file hit.
+        /// </summary>
+        [Test]
+        public void UpdateColumnGainsTheJsonColumnMappingsParameter()
+        {
+            var result = TemplateUpgrade.Upgrade(RepositoryFiles.V390CustomerTemplate());
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Text, Does.Contain(
+                "Settings.UpdateColumn = delegate(Column column, Table table, List<EnumDefinition> enumDefinitions, List<JsonColumnMapping> jsonColumnMappings)"));
+            Assert.That(result.Text, Does.Not.Contain("Table table, List<EnumDefinition> enumDefinitions)"));
+            Assert.That(result.Changes.Select(c => c.Description), Has.One.Contains("UpdateColumn takes a fourth parameter"));
+        }
+
+        /// <summary>
+        ///     The stock v3 data-annotations block compares Settings.DatabaseType with DatabaseType.SqlCe, which v4
+        ///     removed. The comparison becomes false and the rest of the user's block is untouched.
+        /// </summary>
+        [Test]
+        public void TheSqlCeComparisonInTheDataAnnotationsBlockBecomesFalse()
+        {
+            var result = TemplateUpgrade.Upgrade(RepositoryFiles.V390CustomerTemplate());
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Text, Does.Contain("var doNotSpecifySize = (false && column.MaxLength > 4000);"));
+            Assert.That(result.Text, Does.Not.Contain("DatabaseType.SqlCe"));
+        }
+
+        [Test]
+        public void ATemplateReadingASqlCeDatabaseIsRefusedAndPointedAtV3()
+        {
+            var text = RepositoryFiles.V3Template().Replace(
+                "Settings.DatabaseType                 = DatabaseType.SqlServer;",
+                "Settings.DatabaseType                 = DatabaseType.SqlCe;");
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.Blockers.Single(), Does.Contain("SqlCe").And.Contain("v3"));
+        }
+
+        /// <summary>
+        ///     v4 has no EfCore2 to EfCore7. The stock v3 template shipped with EfCore3, EfCore6 and EfCore7 at
+        ///     different times, so a lot of real files carry one of them.
+        /// </summary>
+        [TestCase("EfCore3")]
+        [TestCase("EfCore6")]
+        [TestCase("EfCore7")]
+        public void ATemplateTypeBelowEfCore8IsRaisedToEfCore8WithAWarning(string old)
+        {
+            var text = RepositoryFiles.V390CustomerTemplate().Replace(
+                "Settings.TemplateType            = TemplateType.EfCore8;",
+                "Settings.TemplateType            = TemplateType." + old + ";");
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Text, Does.Contain("Settings.TemplateType            = TemplateType.EfCore8;"));
+            Assert.That(result.Changes.Select(c => c.Description), Has.One.Contains("EF Core 8 or later"));
+        }
+
+        [TestCase("EfCore9")]
+        [TestCase("Ef6")]
+        public void ATemplateTypeV4SupportsIsLeftAlone(string current)
+        {
+            var text = RepositoryFiles.V390CustomerTemplate().Replace(
+                "Settings.TemplateType            = TemplateType.EfCore8;",
+                "Settings.TemplateType            = TemplateType." + current + ";");
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Text, Does.Contain("TemplateType." + current + ";"));
+            Assert.That(result.Changes.Select(c => c.Description), Has.None.Contains("EF Core 8 or later"));
+        }
+
+        /// <summary>
+        ///     The first v3.0.8 templates, November 2019, assigned string arrays to two settings that are lists.
+        /// </summary>
+        [Test]
+        public void StringArraysAssignedToListSettingsBecomeLists()
+        {
+            var text = RepositoryFiles.V3Template()
+                .Replace("Settings.AdditionalNamespaces                   = new List<string>();",
+                         "Settings.AdditionalNamespaces                   = new []{ \"\" };")
+                .Replace("Settings.AdditionalContextInterfaceItems        = new List<string>();",
+                         "Settings.AdditionalContextInterfaceItems        = new string[] { \"void Save();\" };");
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Text, Does.Contain("Settings.AdditionalNamespaces                   = new List<string>{ \"\" };"));
+            Assert.That(result.Text, Does.Contain("Settings.AdditionalContextInterfaceItems        = new List<string>{ \"void Save();\" };"));
+            Assert.That(result.Changes.Count(c => c.Description.Contains("List<string> in v4")), Is.EqualTo(2));
+        }
+
+        /// <summary>
+        ///     Master-only for two weeks in early 2026: one ApplyColumnCustomizations call that v3.12.0 split into four.
+        /// </summary>
+        [Test]
+        public void ApplyColumnCustomizationsIsSplitIntoTheFourCallsThatReplacedIt()
+        {
+            var before = RepositoryFiles.V3Template();
+            var start  = before.IndexOf("        Settings.ApplyJsonPropertyNameAttribute(column);", StringComparison.Ordinal);
+            var end    = before.IndexOf("Settings.ApplyEnumTypeReplacement(column, table, enumDefinitions);", start, StringComparison.Ordinal)
+                         + "Settings.ApplyEnumTypeReplacement(column, table, enumDefinitions);".Length;
+            var text   = before.Substring(0, start) +
+                         "        Settings.ApplyColumnCustomizations(column, table, enumDefinitions, jsonColumnMappings);" +
+                         before.Substring(end);
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Text, Does.Not.Contain("ApplyColumnCustomizations"));
+            Assert.That(result.Text, Does.Contain(
+                "        Settings.ApplyJsonPropertyNameAttribute(column);\r\n" +
+                "        Settings.ApplyJsonColumnMappings(column, table, jsonColumnMappings);\r\n" +
+                "        Settings.ApplyDataAnnotations(column);\r\n" +
+                "        Settings.ApplyEnumTypeReplacement(column, table, enumDefinitions);"));
+        }
+
+        [Test]
+        public void AnUpdateColumnAlreadyTakingFourParametersIsLeftAlone()
+        {
+            var text = RepositoryFiles.V3Template().Replace(
+                "List<EnumDefinition> enumDefinitions)",
+                "List<EnumDefinition> enumDefinitions, List<JsonColumnMapping> jsonColumnMappings)");
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Changes.Select(c => c.Description), Has.None.Contains("UpdateColumn takes a fourth parameter"));
+        }
+
+        /// <summary>
+        ///     Settings.ForeignKeyNamingStrategy was in the stock template for one master commit in 2020 and in the
+        ///     v3 include until the end, so a user may have set it by hand. v4 keeps only the Current behaviour.
+        /// </summary>
+        [Test]
+        public void ForeignKeyNamingStrategyIsDeletedWithAReason()
+        {
+            var text = RepositoryFiles.V3Template().Replace(
+                "    Settings.CommandTimeout ",
+                "    Settings.ForeignKeyNamingStrategy = ForeignKeyNamingStrategy.Current; // Legacy (same as versions <= v3.1.3), Latest\r\n" +
+                "    Settings.CommandTimeout ");
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Text, Does.Not.Contain("ForeignKeyNamingStrategy"));
+            Assert.That(result.Changes.Select(c => c.Description), Has.One.Contains("Settings.ForeignKeyNamingStrategy no longer exists"));
+        }
+
+        /// <summary>
+        ///     v3.0.8 to v3.5.0 shipped without the null check on <c>generator</c>. Files that old are still in use.
+        /// </summary>
+        [Test]
+        public void ThePreV36EntryPointWithoutTheNullCheckUpgrades()
+        {
+            var text = WithEntryPoint(
+                "    var outer = (GeneratedTextTransformation) this;\r\n" +
+                "    var fileManagement = new FileManagementService(outer);\r\n" +
+                "    var generator = GeneratorFactory.Create(fileManagement, FileManagerFactory.GetFileManagerType());\r\n" +
+                "    if (generator.InitialisationOk)\r\n" +
+                "    {\r\n" +
+                "        generator.ReadDatabase();\r\n" +
+                "        generator.GenerateCode();\r\n" +
+                "    }\r\n" +
+                "    fileManagement.Process(true);#>");
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Blockers, Is.Empty);
+            Assert.That(result.Text, Does.EndWith(TemplateUpgrade.V4EntryPoint));
+        }
+
+        /// <summary>
+        ///     Tabs, braces on the same line, doubled spaces and a bare LF: none of it changes the code, so none of
+        ///     it may block the upgrade.
+        /// </summary>
+        [Test]
+        public void WhitespaceAndBracePlacementInsideTheEntryPointDoNotStopTheUpgrade()
+        {
+            var text = WithEntryPoint(
+                "\tvar outer  =  (GeneratedTextTransformation)  this;\n" +
+                "\tvar fileManagement = new FileManagementService( outer );\n" +
+                "\tvar generator = GeneratorFactory.Create(fileManagement,\n" +
+                "\t\tFileManagerFactory.GetFileManagerType());\n" +
+                "\tif (generator != null && generator.InitialisationOk) {\n" +
+                "\t\tgenerator.ReadDatabase(); generator.GenerateCode();\n" +
+                "\t}\n" +
+                "\tfileManagement.Process(true);\n" +
+                "#>");
+
+            var result = TemplateUpgrade.Upgrade(text);
+
+            Assert.That(result.Blockers, Is.Empty);
+        }
+
         /// <summary>
         ///     A half-applied migration leaves a template that neither compiles nor matches the guide, which is
         ///     worse than not offering the button.

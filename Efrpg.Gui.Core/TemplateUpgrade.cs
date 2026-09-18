@@ -73,20 +73,25 @@ namespace Efrpg.Gui
             "#>";
 
         /// <summary>
-        ///     The v3 entry point, once blank lines and comments are stripped. Comparing against this rather than
-        ///     against the literal text is what lets a file carrying its own commented-out notes still upgrade.
+        ///     Every shape the v3 entry point has shipped in, with comments stripped and all whitespace removed.
+        ///     v3.0.8 to v3.5.0 tested <c>generator.InitialisationOk</c> alone;
+        ///     v3.6.0 added the null check. The machine.config comment moved in v3.11.0, but comments are ignored so
+        ///     that needs no shape of its own.
         /// </summary>
-        private static readonly string[] V3EntryPointStatements =
+        private static readonly string[] V3EntryPointShapes =
         {
-            "var outer = (GeneratedTextTransformation) this;",
-            "var fileManagement = new FileManagementService(outer);",
-            "var generator = GeneratorFactory.Create(fileManagement, FileManagerFactory.GetFileManagerType());",
-            "if (generator != null && generator.InitialisationOk)",
-            "{",
-            "generator.ReadDatabase();",
-            "generator.GenerateCode();",
-            "}",
-            "fileManagement.Process(true);#>"
+            NormaliseCode(
+                "var outer = (GeneratedTextTransformation) this; " +
+                "var fileManagement = new FileManagementService(outer); " +
+                "var generator = GeneratorFactory.Create(fileManagement, FileManagerFactory.GetFileManagerType()); " +
+                "if (generator != null && generator.InitialisationOk) { generator.ReadDatabase(); generator.GenerateCode(); } " +
+                "fileManagement.Process(true);#>"),
+            NormaliseCode(
+                "var outer = (GeneratedTextTransformation) this; " +
+                "var fileManagement = new FileManagementService(outer); " +
+                "var generator = GeneratorFactory.Create(fileManagement, FileManagerFactory.GetFileManagerType()); " +
+                "if (generator.InitialisationOk) { generator.ReadDatabase(); generator.GenerateCode(); } " +
+                "fileManagement.Process(true);#>")
         };
 
         /// <summary>
@@ -113,6 +118,16 @@ namespace Efrpg.Gui
 
         private static readonly Regex CustomGeneratorInUse =
             new Regex(@"^[ \t]*Settings\.GeneratorType[ \t]*=[ \t]*GeneratorType\.Custom\b", RegexOptions.Multiline);
+
+        private static readonly Regex SqlCeInUse =
+            new Regex(@"^[ \t]*Settings\.DatabaseType[ \t]*=[ \t]*DatabaseType\.SqlCe\b", RegexOptions.Multiline);
+
+        /// <summary>
+        ///     The stock v3 data-annotations block asks whether the database is SQL CE before deciding on
+        ///     <c>[MaxLength]</c>. v4 has no SQL CE, so the comparison becomes <c>false</c> and the block keeps working.
+        /// </summary>
+        private static readonly Regex SqlCeComparison =
+            new Regex(@"Settings\.DatabaseType\s*==\s*DatabaseType\.SqlCe\b");
 
         private static readonly Regex IncludeDirective =
             new Regex(@"^<#@\s*include\s+file\s*=\s*""(?<include>[^""]+)""\s*#>", RegexOptions.Multiline);
@@ -180,6 +195,13 @@ namespace Efrpg.Gui
                     "to GeneratorType.EfCore or GeneratorType.Ef6 first."
                 });
 
+            if (SqlCeInUse.IsMatch(_text))
+                return TemplateUpgradeResult.Refused(new[]
+                {
+                    "This template reads a SQL Server Compact database (DatabaseType.SqlCe), which v4 removed. " +
+                    "Stay on v3 for this project; v3 remains downloadable and continues to work."
+                });
+
             var text = _text;
 
             text = SwapInclude(text);
@@ -202,8 +224,15 @@ namespace Efrpg.Gui
                 "Settings.FileExtension no longer exists in v4 - generated files are always .cs.");
             text = DeleteSetting(text, "IncludeQueryTraceOn9481Flag",
                 "Settings.IncludeQueryTraceOn9481Flag no longer exists in v4 - the SQL Server 2014 workaround was retired.");
+            text = DeleteSetting(text, "ForeignKeyNamingStrategy",
+                "Settings.ForeignKeyNamingStrategy no longer exists in v4 - only the Current strategy remains; Beta was never completed.");
             text = SimplifySeparateFilesCondition(text);
             text = RenameCleanUp(text);
+            text = AddJsonColumnMappingsToUpdateColumn(text);
+            text = RemoveSqlCeComparison(text);
+            text = RaiseTemplateTypeToEfCore8(text);
+            text = ConvertStringArraysToLists(text);
+            text = SplitApplyColumnCustomizations(text);
             text = ReplaceEntryPoint(text);
 
             // Only when everything else worked. A refused entry point still contains
@@ -214,14 +243,16 @@ namespace Efrpg.Gui
             // Settings.FileManagerType and FileManagerType.Null does not produce two identical blockers.
             if (_blockers.Count == 0)
             {
-                LeftoverCheck(text, "FileManagerType");
-                LeftoverCheck(text, "DatabaseReaderPlugin");
-                LeftoverCheck(text, "DatabaseReader.");
+                LeftoverCheckInCode(text, "FileManagerType");
+                LeftoverCheckInCode(text, "DatabaseReaderPlugin");
+                LeftoverCheckInCode(text, "DatabaseReader.");
                 LeftoverCheckInCode(text, "Settings.MultiContext");
                 LeftoverCheckInCode(text, "Settings.GenerateSingleDbContext");
                 LeftoverCheckInCode(text, "Settings.TemplateFolder");
                 LeftoverCheckInCode(text, "TemplateType.FileBased");
                 LeftoverCheckInCode(text, "GeneratorType.Custom");
+                LeftoverCheckInCode(text, "ForeignKeyNamingStrategy");
+                LeftoverCheckInCode(text, "DatabaseType.SqlCe");
             }
 
             return _blockers.Count > 0
@@ -277,8 +308,11 @@ namespace Efrpg.Gui
         }
 
         /// <summary>
-        ///     As <see cref="LeftoverCheck"/>, ignoring line comments. A stock v3 file mentions the removed settings
-        ///     in prose above their block, and prose is not a compile error.
+        ///     Anything still naming a type or setting that v4 removed will not compile, so it is a refusal rather
+        ///     than something to leave for the user to find at generation time. Line comments are ignored: stock v3
+        ///     files mention the removed settings in prose - v3.5.0 to v3.6.0 said "Only activated if
+        ///     Settings.FileManagerType = FileManagerType.EfCore" above the sub-folder block - and prose is not a
+        ///     compile error.
         /// </summary>
         private void LeftoverCheckInCode(string text, string fragment)
         {
@@ -324,6 +358,115 @@ namespace Efrpg.Gui
         }
 
         /// <summary>
+        ///     v4 gave <c>Settings.UpdateColumn</c> a fourth parameter for JSON column mappings. The v3 three-parameter
+        ///     delegate is a compile error against the v4 include, so the parameter is appended. The body is left
+        ///     alone: it is the user's code, and nothing in it needs the new parameter.
+        /// </summary>
+        private string AddJsonColumnMappingsToUpdateColumn(string text)
+        {
+            var pattern = new Regex(
+                @"Settings\.UpdateColumn\s*=\s*delegate\s*\(\s*Column\s+(?<column>\w+)\s*,\s*Table\s+(?<table>\w+)\s*,\s*List<EnumDefinition>\s+(?<enums>\w+)\s*\)");
+            var match = pattern.Match(text);
+
+            if (!match.Success)
+                return text;
+
+            var after = "Settings.UpdateColumn = delegate(Column " + match.Groups["column"].Value +
+                        ", Table " + match.Groups["table"].Value +
+                        ", List<EnumDefinition> " + match.Groups["enums"].Value +
+                        ", List<JsonColumnMapping> jsonColumnMappings)";
+
+            Record("Settings.UpdateColumn takes a fourth parameter in v4, the JSON column mappings.", match.Value, after);
+
+            return text.Substring(0, match.Index) + after + text.Substring(match.Index + match.Length);
+        }
+
+        /// <summary>
+        ///     v4 generates for EF Core 8 and later only. A template targeting EF Core 2 to 7 is moved to EfCore8, the
+        ///     lowest v4 offers, and the change says so: the user's project has to be on EF Core 8 or later for v4
+        ///     to be of any use to it.
+        /// </summary>
+        private string RaiseTemplateTypeToEfCore8(string text)
+        {
+            var pattern = new Regex(@"^(?<lead>[ \t]*Settings\.TemplateType[ \t]*=[ \t]*)TemplateType\.EfCore[2-7]\b", RegexOptions.Multiline);
+            var match = pattern.Match(text);
+
+            if (!match.Success)
+                return text;
+
+            var after = match.Groups["lead"].Value + "TemplateType.EfCore8";
+
+            Record("v4 generates for EF Core 8 and later only. The template type is moved to EfCore8; make sure the " +
+                   "project itself is on EF Core 8 or later, and pick EfCore9 or EfCore10 if it is.",
+                match.Value.Trim(), after.Trim());
+
+            return text.Substring(0, match.Index) + after + text.Substring(match.Index + match.Length);
+        }
+
+        /// <summary>
+        ///     For three weeks in November 2019 the stock v3.0.8 template assigned <c>new []{ "" }</c> to two
+        ///     settings that were already lists by the next revision. A string array is a compile error against
+        ///     a <c>List&lt;string&gt;</c> setting, so the initialiser is rewritten and the elements kept.
+        /// </summary>
+        private string ConvertStringArraysToLists(string text)
+        {
+            var pattern = new Regex(
+                @"^(?<lead>[ \t]*Settings\.(AdditionalNamespaces|AdditionalContextInterfaceItems|AdditionalFileHeaderText|AdditionalFileFooterText)[ \t]*=[ \t]*)new[ \t]*(string)?[ \t]*\[[ \t]*\][ \t]*(?=\{)",
+                RegexOptions.Multiline);
+
+            foreach (Match match in pattern.Matches(text))
+                Record("This setting is a List<string> in v4, not a string array.", match.Value.Trim(),
+                    (match.Groups["lead"].Value + "new List<string>").Trim());
+
+            return pattern.Replace(text, "${lead}new List<string>");
+        }
+
+        /// <summary>
+        ///     For two weeks in early 2026, master only, the stock UpdateColumn called one
+        ///     <c>Settings.ApplyColumnCustomizations</c> that v3.12.0 split into four calls. Anyone who took the
+        ///     template from master in that window gets the four calls, in the order the split made them.
+        /// </summary>
+        private string SplitApplyColumnCustomizations(string text)
+        {
+            var pattern = new Regex(
+                @"^(?<indent>[ \t]*)Settings\.ApplyColumnCustomizations\s*\(\s*(?<column>\w+)\s*,\s*(?<table>\w+)\s*,\s*(?<enums>\w+)\s*,\s*(?<json>\w+)\s*\)\s*;",
+                RegexOptions.Multiline);
+            var match = pattern.Match(text);
+
+            if (!match.Success)
+                return text;
+
+            var indent = match.Groups["indent"].Value;
+            var column = match.Groups["column"].Value;
+            var table  = match.Groups["table"].Value;
+            var enums  = match.Groups["enums"].Value;
+            var json   = match.Groups["json"].Value;
+            var newLine = text.IndexOf("\r\n", StringComparison.Ordinal) >= 0 ? "\r\n" : "\n";
+
+            var after = indent + "Settings.ApplyJsonPropertyNameAttribute(" + column + ");" + newLine +
+                        indent + "Settings.ApplyJsonColumnMappings(" + column + ", " + table + ", " + json + ");" + newLine +
+                        indent + "Settings.ApplyDataAnnotations(" + column + ");" + newLine +
+                        indent + "Settings.ApplyEnumTypeReplacement(" + column + ", " + table + ", " + enums + ");";
+
+            Record("Settings.ApplyColumnCustomizations was split into four calls before v3.12.0 and does not exist in v4.",
+                match.Value.Trim(), after.Trim());
+
+            return text.Substring(0, match.Index) + after + text.Substring(match.Index + match.Length);
+        }
+
+        private string RemoveSqlCeComparison(string text)
+        {
+            var match = SqlCeComparison.Match(text);
+
+            if (!match.Success)
+                return text;
+
+            Record("DatabaseType.SqlCe no longer exists in v4, so the comparison is always false.", match.Value, "false");
+
+            return SqlCeComparison.Replace(text, "false");
+        }
+
+        /// <summary>
         ///     Replaces the whole tail of the file, because in v3 <c>fileManagement</c> is created after the
         ///     commented-out machine.config lines and in v4 it moves above the try block.
         /// </summary>
@@ -359,32 +502,28 @@ namespace Efrpg.Gui
         }
 
         /// <summary>
-        ///     Compares the statements only. Blank lines and comments are dropped first, so a file carrying its own
-        ///     notes inside the block still upgrades, while one that has been genuinely restructured does not.
+        ///     Compares the code only. Comments are dropped and every whitespace character with them, so a file
+        ///     carrying its own notes, tabs or odd indentation inside the block still upgrades, while one that has
+        ///     been genuinely restructured does not.
         /// </summary>
         private static bool IsRecognisedV3EntryPoint(string tail)
         {
-            var statements = tail
+            var code = tail
                 .Replace("\r\n", "\n")
                 .Split('\n')
                 .Select(line => line.Trim())
-                .Where(line => line.Length > 0 && !line.StartsWith("//", StringComparison.Ordinal))
-                .ToList();
+                .Where(line => line.Length > 0 && !line.StartsWith("//", StringComparison.Ordinal));
 
-            return statements.SequenceEqual(V3EntryPointStatements, StringComparer.Ordinal);
+            return V3EntryPointShapes.Contains(NormaliseCode(string.Join(" ", code)), StringComparer.Ordinal);
         }
 
         /// <summary>
-        ///     Anything still naming a type or setting that v4 removed will not compile, so it is a refusal rather
-        ///     than something to leave for the user to find at generation time.
+        ///     Removes every whitespace character, so two spellings of the same statements compare equal whatever
+        ///     the indentation, brace placement or line endings.
         /// </summary>
-        private void LeftoverCheck(string text, string fragment)
+        private static string NormaliseCode(string code)
         {
-            if (text.IndexOf(fragment, StringComparison.Ordinal) < 0)
-                return;
-
-            _blockers.Add("This template still refers to '" + fragment +
-                          "', which v4 removed, in a place this upgrade does not know how to change.");
+            return Regex.Replace(code, @"\s+", string.Empty);
         }
 
         private void Record(string description, string before, string after)

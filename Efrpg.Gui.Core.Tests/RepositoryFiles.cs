@@ -50,6 +50,17 @@ namespace Efrpg.Gui.Tests
         }
 
         /// <summary>
+        ///     A real v3.9.0 Database.tt hand-edited over years, with its table and namespace names swapped for
+        ///     Northwind ones: custom filters, hidden columns, extra foreign keys, a pluralisation entry, and an
+        ///     entry point without the null check on <c>generator</c> even though that check shipped in v3.6.0.
+        /// </summary>
+        public static string V390CustomerTemplate()
+        {
+            return File.ReadAllText(Path.Combine(RepositoryRoot.Value,
+                "Efrpg.Gui.Core.Tests", "Fixtures", "Database.v3.9.0.customer.tt"));
+        }
+
+        /// <summary>
         ///     A real tester template whose connection string is an environment variable rather than a literal -
         ///     the way credentials are kept out of source control, and the case the connection dialog once got wrong.
         /// </summary>

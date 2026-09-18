@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="EntityFramework_Reverse_POCO_Generator..d542a934-8bd6-4136-b490-5f0049d62033" Version="4.0.46" Language="en-US" Publisher="Simon Hughes" />
+        <Identity Id="EntityFramework_Reverse_POCO_Generator..d542a934-8bd6-4136-b490-5f0049d62033" Version="4.0.48" Language="en-US" Publisher="Simon Hughes" />
         <DisplayName>EntityFramework Reverse POCO Generator</DisplayName>
         <Description xml:space="preserve">Reverse engineers an existing database into Entity Framework Code First POCO classes, mappings, enumerations, DbContext, FakeDbContext and stored procedure calls. EF Core 8, 9, 10 and EF6. SQL Server, PostgreSQL, MySQL, Oracle and SQLite. Requires the efrpg dotnet tool.</Description>
         <MoreInfo>https://github.com/ReversePOCO/EntityFramework-Reverse-POCO-Code-First-Generator</MoreInfo>
