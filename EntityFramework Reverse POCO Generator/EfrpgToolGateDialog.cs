@@ -26,6 +26,8 @@ namespace EntityFramework_Reverse_POCO_Generator
     {
         private readonly EfrpgToolGate _gate;
         private readonly TextBlock _message;
+        private readonly TextBox _command;
+        private readonly TextBlock _restart;
         private readonly Button _install;
         private readonly Button _copy;
         private readonly Button _continue;
@@ -52,9 +54,27 @@ namespace EntityFramework_Reverse_POCO_Generator
             HasMinimizeButton     = false;
 
             _message  = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
+            _command  = new TextBox
+            {
+                IsReadOnly          = true,
+                FontFamily          = new FontFamily("Consolas"),
+                Padding             = new Thickness(6, 4, 6, 4),
+                Margin              = new Thickness(0, 0, 0, 8),
+                TextWrapping        = TextWrapping.Wrap,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
             _install  = new Button { MinWidth = 120, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), IsDefault = true };
             _copy     = new Button { MinWidth = 120, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), Content = "_Copy command" };
-            _continue = new Button { MinWidth = 120, Padding = new Thickness(10, 4, 10, 4), Content = "C_ontinue anyway", IsCancel = true };
+            _restart  = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Margin       = new Thickness(0, 0, 0, 14),
+                Text         = "Then restart Visual Studio as it caches its PATH at startup, so a dotnet tool installed while " +
+                               "VS is open won't be found until you restart VS."
+            };
+            // No IsCancel on purpose: Esc and the title-bar X must both back out. Continuing without the tool is a
+            // choice the user makes by clicking the button, not by dismissing a dialog they did not expect.
+            _continue = new Button { MinWidth = 120, Padding = new Thickness(10, 4, 10, 4), Content = "C_ontinue anyway" };
 
             _install.Click  += OnInstall;
             _copy.Click     += OnCopy;
@@ -66,44 +86,48 @@ namespace EntityFramework_Reverse_POCO_Generator
 
         private UIElement Build()
         {
-            var command = new TextBox
-            {
-                IsReadOnly          = true,
-                FontFamily          = new FontFamily("Consolas"),
-                Padding             = new Thickness(6, 4, 6, 4),
-                Margin              = new Thickness(0, 0, 0, 14),
-                TextWrapping        = TextWrapping.Wrap,
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            };
-            command.SetBinding(TextBox.TextProperty, new System.Windows.Data.Binding("CommandText") { Source = this });
-
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             buttons.Children.Add(_install);
             buttons.Children.Add(_copy);
             buttons.Children.Add(_continue);
 
             var body = new StackPanel { Margin = new Thickness(16) };
-            body.Children.Add(_message);
+            // A failed install puts pages of NuGet output in the message. The window sizes to content and cannot be
+            // resized, so without a cap the buttons end up below the bottom of the screen.
+            body.Children.Add(new ScrollViewer { Content = _message, MaxHeight = 320, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
             body.Children.Add(new TextBlock { Text = "Run this command:", Margin = new Thickness(0, 0, 0, 4), FontWeight = FontWeights.SemiBold });
-            body.Children.Add(command);
+            body.Children.Add(_command);
+            body.Children.Add(_restart);
             body.Children.Add(buttons);
             return body;
         }
 
         /// <summary>
-        ///     The command the user would type. Bound rather than assigned so it follows a state change after an
-        ///     install attempt.
+        ///     The command the user would type. Pushed into the box by <see cref="Render"/> rather than data bound:
+        ///     WPF binds TextBox.Text two way by default, and a two-way binding onto a get-only property throws
+        ///     outright ("A TwoWay or OneWayToSource binding cannot work on the read-only property"). Assigning it
+        ///     on every render is also the only thing that actually follows a state change, since this property
+        ///     raises no change notification.
         /// </summary>
-        public string CommandText => _status.FixCommand ?? EfrpgToolGate.InstallCommand;
+        private string CommandText => _status.FixCommand ?? EfrpgToolGate.InstallCommand;
 
         private void Render()
         {
             _message.Text  = Describe(_status);
-            _install.Content = _status.State == EfrpgToolState.NotFound ? "_Install efrpg" : "_Update efrpg";
+            _command.Text  = CommandText;
+            _install.Content = InstallLabel();
+
+            // An update replaces a binary that is already on the PATH, so only a fresh install needs the restart.
+            _restart.Visibility = _status.State == EfrpgToolState.NotFound ? Visibility.Visible : Visibility.Collapsed;
 
             // 'dotnet tool install' needs the SDK, not just a runtime. Offering a button that cannot work would be
             // worse than not offering it, so it is disabled and the message says why.
             _install.IsEnabled = _status.DotnetSdkPresent;
+        }
+
+        private string InstallLabel()
+        {
+            return _status.State == EfrpgToolState.NotFound ? "_Install efrpg" : "_Update efrpg";
         }
 
         private static string Describe(EfrpgToolStatus status)
@@ -206,10 +230,10 @@ namespace EntityFramework_Reverse_POCO_Generator
             _continue.IsEnabled = !busy;
             Cursor              = busy ? System.Windows.Input.Cursors.Wait : null;
 
-            if (busy)
-                _install.Content = "Working...";
-            else
-                Render();
+            // Only the label is restored here, never the whole dialog: a re-render from _status would wipe the
+            // verbatim install error OnInstall has just put on screen, before a frame is painted. The one path
+            // where _status has actually changed calls Render() itself.
+            _install.Content    = busy ? "Working..." : InstallLabel();
         }
 
         private void Close(bool proceed)

@@ -1,6 +1,6 @@
 <#@ include file="EF.Reverse.POCO.v4.ttinclude" #>
 <#
-    // v4.0.48
+    // v4.0.49
     // Please make changes to the settings below.
     // All you have to do is save this file, and the output file(s) are generated. Compiling does not regenerate the file(s).
     // A course for the older v2 generator is available on Pluralsight at https://www.pluralsight.com/courses/code-first-entity-framework-legacy-databases
