@@ -22,7 +22,7 @@ namespace Efrpg.Filtering
         public bool IncludeTableValuedFunctions { get; set; }
         public bool IncludeScalarValuedFunctions { get; set; }
 
-        public List<EnumDefinition> EnumDefinitions;
+        public List<EnumDefinition> EnumDefinitions { get; set; }
         public List<JsonColumnMapping> JsonColumnMappings;
         public List<OwnedEntityMapping> OwnedEntityMappings;
 

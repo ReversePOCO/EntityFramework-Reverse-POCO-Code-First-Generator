@@ -77,6 +77,16 @@
         }
     };
 
+    // #888 Stored procedure return columns typed as enums. EnumTest.GetDaysOfWeek returns EnumId (matched by the
+    // definition scoped to the procedure) and a nullable AlternateEnumId (matched by the "*" definition). Neither
+    // definition touches a table: no EnumTest table has an AlternateEnumId column, and OpenDays.EnumId is only
+    // matched by a "*" or "OpenDays" entry.
+    Settings.AddEnumDefinitions = delegate (List<EnumDefinition> enumDefinitions)
+    {
+        enumDefinitions.Add(new EnumDefinition { Schema = "EnumTest", Table = "GetDaysOfWeek", Column = "EnumId",          EnumType = "DaysOfWeek" });
+        enumDefinitions.Add(new EnumDefinition { Schema = "EnumTest", Table = "*",             Column = "AlternateEnumId", EnumType = "DaysOfWeek" });
+    };
+
     Settings.AddOwnedEntityMappings = delegate (List<OwnedEntityMapping> mappings)
     {
         // Customer table: two Address-typed owned entities (billing + shipping).

@@ -20,6 +20,18 @@ namespace Efrpg
         public bool HasSpatialReturnModel;
         public string Error; // Set when an exception occurs reading the return model (e.g. SP uses temp tables)
 
+        // DataColumn.DataType must be a real System.Type, and the enum only exists in the generated code, so the
+        // enum type name travels in ExtendedProperties instead. ApplyEnumDefinitions sets it; a Database.tt can also
+        // set it by hand in ReadStoredProcReturnObjectCompleted.
+        public const string EnumTypeExtendedProperty = "EnumType";
+
+        // The C# types an enum may be backed by. A definition matching a column of any other type is ignored:
+        // EF could never materialise a varchar into an enum, so retyping it would only move the failure to runtime.
+        private static readonly HashSet<string> EnumUnderlyingTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong"
+        };
+
         public StoredProcedure()
         {
             Parameters = new List<StoredProcedureParameter>();
@@ -677,8 +689,42 @@ namespace Efrpg
                    lowerType == "nettopologysuite.geometries.geometry";
         }
 
+        /// <summary>
+        ///     Retypes return columns as enums using the same Settings.AddEnumDefinitions list that types table columns
+        ///     (issue #888). A return model has no table to match against, so a definition applies when its Table is "*"
+        ///     or names this routine, its Schema matches, and its Column matches the result column by database name or
+        ///     sanitised C# name. Table-scoped definitions never reach here, so a status column shared by a table and a
+        ///     procedure is typed by one wildcard entry rather than two.
+        /// </summary>
+        public void ApplyEnumDefinitions(List<EnumDefinition> enumDefinitions)
+        {
+            if (enumDefinitions == null || !enumDefinitions.Any())
+                return;
+
+            foreach (var col in ReturnModels.SelectMany(model => model))
+            {
+                if (col.ExtendedProperties.Contains(EnumTypeExtendedProperty))
+                    continue; // Set by hand in ReadStoredProcReturnObjectCompleted; that wins
+
+                if (!EnumUnderlyingTypes.Contains(ConvertDataColumnType(col)))
+                    continue;
+
+                var sanitisedName = SanitizeReturnColumnName(col.ColumnName).TrimStart('@');
+                var enumDefinition = enumDefinitions.FirstOrDefault(e =>
+                    e.Schema.Equals(Schema.DbName, StringComparison.InvariantCultureIgnoreCase) &&
+                    (e.Table == "*" || e.Table.Equals(DbName, StringComparison.InvariantCultureIgnoreCase) || e.Table.Equals(NameHumanCase, StringComparison.InvariantCultureIgnoreCase)) &&
+                    (e.Column.Equals(col.ColumnName, StringComparison.InvariantCultureIgnoreCase) || e.Column.Equals(sanitisedName, StringComparison.InvariantCultureIgnoreCase)));
+
+                if (enumDefinition != null)
+                    col.ExtendedProperties[EnumTypeExtendedProperty] = enumDefinition.EnumType;
+            }
+        }
+
         private string ConvertDataColumnType(DataColumn col)
         {
+            if (col.ExtendedProperties.Contains(EnumTypeExtendedProperty))
+                return (string) col.ExtendedProperties[EnumTypeExtendedProperty];
+
             if (col.DataType == typeof(object) && col.ExtendedProperties.Contains("DataTypeFullName"))
             {
                 var fullName = col.ExtendedProperties["DataTypeFullName"] as string;

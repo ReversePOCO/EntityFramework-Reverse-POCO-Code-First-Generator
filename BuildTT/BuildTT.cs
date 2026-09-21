@@ -348,6 +348,10 @@ namespace BuildTT
 
         // This will replace any table *.OrderStatus type to be an OrderStatusType enum
         //enumDefinitions.Add(new EnumDefinition { Schema = Settings.DefaultSchema, Table = ""*"", Column = ""OrderStatus"", EnumType = ""OrderStatusType"" });
+
+        // Stored procedure and function return models are covered too. A ""*"" definition also retypes any integral
+        // return column of that name; to scope it to one routine, put the routine's name in Table instead.
+        //enumDefinitions.Add(new EnumDefinition { Schema = Settings.DefaultSchema, Table = ""GetOrdersByStatus"", Column = ""OrderStatus"", EnumType = ""OrderStatusType"" });
     };
 
     // In order to use this function, Settings.ElementsToGenerate must contain both Elements.Poco and Elements.Enum;

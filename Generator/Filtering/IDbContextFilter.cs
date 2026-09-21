@@ -10,6 +10,7 @@ namespace Efrpg.Filtering
         List<StoredProcedure> StoredProcs { get; set; }
         List<Enumeration> Enums { get; set; }
         List<RawSequence> Sequences { get; set; }
+        List<EnumDefinition> EnumDefinitions { get; set; }
         bool IncludeViews { get; set; }
         bool IncludeSynonyms { get; set; }
         bool IncludeStoredProcedures { get; set; }

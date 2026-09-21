@@ -2573,3 +2573,14 @@ BEGIN
     SELECT CAST(NULL AS varchar(50)) AS SomeText;
 END
 GO
+
+-- #888 Return columns typed as enums via Settings.AddEnumDefinitions. EnumId is matched by a definition
+-- scoped to this procedure, AlternateEnumId (nullable) by a "*" definition; TypeName stays a string.
+CREATE PROCEDURE EnumTest.GetDaysOfWeek AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT d.TypeId AS EnumId, CAST(NULL AS INT) AS AlternateEnumId, d.TypeName
+    FROM EnumTest.DaysOfWeek d
+    ORDER BY d.TypeId;
+END
+GO

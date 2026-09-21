@@ -1053,6 +1053,8 @@ namespace Efrpg.Generators
                     {
                         if (!filter.IsExcluded(sp))
                         {
+                            sp.ApplyEnumDefinitions(filter.EnumDefinitions);
+
                             if (_hasTrialLicence)
                             {
                                 const int n = 1 + 2 + 3 + 4;

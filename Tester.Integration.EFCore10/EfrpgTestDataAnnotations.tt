@@ -76,6 +76,14 @@
             }
         };
 
+    // #888 Stored procedure return columns typed as enums, mirroring EfrpgTest.tt so the data annotations path is
+    // covered too. See the comment there for why neither definition reaches a table.
+    Settings.AddEnumDefinitions = delegate (List<EnumDefinition> enumDefinitions)
+    {
+        enumDefinitions.Add(new EnumDefinition { Schema = "EnumTest", Table = "GetDaysOfWeek", Column = "EnumId",          EnumType = "DaysOfWeek" });
+        enumDefinitions.Add(new EnumDefinition { Schema = "EnumTest", Table = "*",             Column = "AlternateEnumId", EnumType = "DaysOfWeek" });
+    };
+
     Settings.UpdateColumn = delegate (Column column, Table table, List<EnumDefinition> enumDefinitions, List<JsonColumnMapping> jsonColumnMappings)
     {
         // Make property partial, see https://github.com/ReversePOCO/EntityFramework-Reverse-POCO-Code-First-Generator/wiki/Partial-properties

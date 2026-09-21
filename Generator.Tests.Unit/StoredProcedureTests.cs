@@ -776,6 +776,202 @@ AS BEGIN SELECT 1 END";
             Assert.IsFalse(mappings.Any(x => x.Contains("IsRequired")), "oblivious code needs no explicit nullability; EF Core already treats reference types as nullable");
         }
 
+        // -----------------------------------------------------------------------
+        // Issue #888 - return columns can be retyped as enums via Settings.AddEnumDefinitions.
+        // A return model has no table, so a definition matches on the column name when its Table
+        // is "*" or names the stored procedure itself.
+        // -----------------------------------------------------------------------
+
+        [Description("Issue #888 - a wildcard definition retypes an integral return column, honouring DB nullability")]
+        [TestCase(false, "public OrderStatusType OrderStatus { get; set; }")]
+        [TestCase(true,  "public OrderStatusType? OrderStatus { get; set; }")]
+        public void ApplyEnumDefinitions_WildcardTable_RetypesReturnColumn(bool allowDbNull, string expected)
+        {
+            // Arrange
+            var col = new DataColumn("OrderStatus", typeof(int)) { AllowDBNull = allowDbNull };
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { col } };
+            var definitions = new List<EnumDefinition>
+            {
+                new EnumDefinition { Schema = "dbo", Table = "*", Column = "OrderStatus", EnumType = "OrderStatusType" }
+            };
+
+            // Act
+            _sut.ApplyEnumDefinitions(definitions);
+            var result = _sut.WriteStoredProcReturnColumn(col);
+
+            // Assert
+            Assert.AreEqual(expected, result);
+        }
+
+        [Test]
+        [Description("Issue #888 - a definition whose Table names the stored procedure applies only to that procedure")]
+        public void ApplyEnumDefinitions_TableNamesThisProcedure_RetypesReturnColumn()
+        {
+            // Arrange
+            var col = new DataColumn("OrderStatus", typeof(int)) { AllowDBNull = false };
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { col } };
+            var definitions = new List<EnumDefinition>
+            {
+                new EnumDefinition { Schema = "dbo", Table = _sut.DbName, Column = "OrderStatus", EnumType = "OrderStatusType" }
+            };
+
+            // Act
+            _sut.ApplyEnumDefinitions(definitions);
+
+            // Assert
+            Assert.AreEqual("public OrderStatusType OrderStatus { get; set; }", _sut.WriteStoredProcReturnColumn(col));
+        }
+
+        [Test]
+        [Description("Issue #888 - a definition scoped to a table or another procedure leaves the return column alone")]
+        public void ApplyEnumDefinitions_TableNamesSomethingElse_LeavesReturnColumnAlone()
+        {
+            // Arrange
+            var col = new DataColumn("OrderStatus", typeof(int)) { AllowDBNull = false };
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { col } };
+            var definitions = new List<EnumDefinition>
+            {
+                new EnumDefinition { Schema = "dbo", Table = "OrderHeader", Column = "OrderStatus", EnumType = "OrderStatusType" }
+            };
+
+            // Act
+            _sut.ApplyEnumDefinitions(definitions);
+
+            // Assert
+            Assert.AreEqual("public int OrderStatus { get; set; }", _sut.WriteStoredProcReturnColumn(col));
+        }
+
+        [Test]
+        [Description("Issue #888 - the definition's schema must match the procedure's schema")]
+        public void ApplyEnumDefinitions_DifferentSchema_LeavesReturnColumnAlone()
+        {
+            // Arrange
+            var col = new DataColumn("OrderStatus", typeof(int)) { AllowDBNull = false };
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { col } };
+            var definitions = new List<EnumDefinition>
+            {
+                new EnumDefinition { Schema = "sales", Table = "*", Column = "OrderStatus", EnumType = "OrderStatusType" }
+            };
+
+            // Act
+            _sut.ApplyEnumDefinitions(definitions);
+
+            // Assert
+            Assert.AreEqual("public int OrderStatus { get; set; }", _sut.WriteStoredProcReturnColumn(col));
+        }
+
+        [Test]
+        [Description("Issue #888 - a wildcard that happens to match a non-integral column must not retype it; the enum could never materialise")]
+        public void ApplyEnumDefinitions_NonIntegralColumn_LeavesReturnColumnAlone()
+        {
+            // Arrange
+            var col = new DataColumn("OrderStatus", typeof(string)) { AllowDBNull = false };
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { col } };
+            var definitions = new List<EnumDefinition>
+            {
+                new EnumDefinition { Schema = "dbo", Table = "*", Column = "OrderStatus", EnumType = "OrderStatusType" }
+            };
+
+            // Act
+            _sut.ApplyEnumDefinitions(definitions);
+
+            // Assert
+            Assert.AreEqual("public string OrderStatus { get; set; }", _sut.WriteStoredProcReturnColumn(col));
+        }
+
+        [Test]
+        [Description("Issue #888 - the match is case-insensitive and also accepts the sanitised C# name of the column")]
+        public void ApplyEnumDefinitions_MatchesSanitisedColumnName()
+        {
+            // Arrange
+            var col = new DataColumn("order status", typeof(byte)) { AllowDBNull = false };
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { col } };
+            var definitions = new List<EnumDefinition>
+            {
+                new EnumDefinition { Schema = "DBO", Table = "*", Column = "orderstatus", EnumType = "OrderStatusType" }
+            };
+
+            // Act
+            _sut.ApplyEnumDefinitions(definitions);
+
+            // Assert
+            Assert.AreEqual("public OrderStatusType OrderStatus { get; set; }", _sut.WriteStoredProcReturnColumn(col));
+        }
+
+        [Test]
+        [Description("Issue #888 - every result set of a multi-model procedure is retyped, not just the first")]
+        public void ApplyEnumDefinitions_MultipleReturnModels_RetypesEveryModel()
+        {
+            // Arrange
+            var first  = new DataColumn("OrderStatus", typeof(int)) { AllowDBNull = false };
+            var second = new DataColumn("OrderStatus", typeof(int)) { AllowDBNull = false };
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { first }, new List<DataColumn> { second } };
+            var definitions = new List<EnumDefinition>
+            {
+                new EnumDefinition { Schema = "dbo", Table = "*", Column = "OrderStatus", EnumType = "OrderStatusType" }
+            };
+
+            // Act
+            _sut.ApplyEnumDefinitions(definitions);
+
+            // Assert
+            Assert.AreEqual("public OrderStatusType OrderStatus { get; set; }", _sut.WriteStoredProcReturnColumn(first));
+            Assert.AreEqual("public OrderStatusType OrderStatus { get; set; }", _sut.WriteStoredProcReturnColumn(second));
+        }
+
+        [Test]
+        [Description("Issue #888 - an enum set by hand in ReadStoredProcReturnObjectCompleted wins over the definitions")]
+        public void ApplyEnumDefinitions_ColumnAlreadyHasEnumType_IsNotOverridden()
+        {
+            // Arrange
+            var col = new DataColumn("OrderStatus", typeof(int)) { AllowDBNull = false };
+            col.ExtendedProperties[StoredProcedure.EnumTypeExtendedProperty] = "HandPickedType";
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { col } };
+            var definitions = new List<EnumDefinition>
+            {
+                new EnumDefinition { Schema = "dbo", Table = "*", Column = "OrderStatus", EnumType = "OrderStatusType" }
+            };
+
+            // Act
+            _sut.ApplyEnumDefinitions(definitions);
+
+            // Assert
+            Assert.AreEqual("public HandPickedType OrderStatus { get; set; }", _sut.WriteStoredProcReturnColumn(col));
+        }
+
+        [Test]
+        [Description("Issue #888 - an enum-typed return column is a value type, so NRT never appends = null!")]
+        public void WriteStoredProcReturnColumn_EnumUnderNrt_NoNullForgiving()
+        {
+            // Arrange
+            Settings.AllowNullStrings = true;
+            var col = new DataColumn("OrderStatus", typeof(int)) { AllowDBNull = false };
+            col.ExtendedProperties[StoredProcedure.EnumTypeExtendedProperty] = "OrderStatusType";
+
+            // Act
+            var result = _sut.WriteStoredProcReturnColumn(col);
+
+            // Assert
+            Assert.AreEqual("public OrderStatusType OrderStatus { get; set; }", result);
+        }
+
+        [Test]
+        [Description("Issue #888 - an enum-typed return column gets no IsRequired(false) mapping; it is not a reference type")]
+        public void GetReturnColumnMappings_EnumColumnUnderNrt_NoIsRequiredMapping()
+        {
+            // Arrange
+            Settings.NullableReverseNavigationProperties = true;
+            var col = new DataColumn("OrderStatus", typeof(int)) { AllowDBNull = true };
+            col.ExtendedProperties[StoredProcedure.EnumTypeExtendedProperty] = "OrderStatusType";
+            _sut.ReturnModels = new List<List<DataColumn>> { new List<DataColumn> { col } };
+
+            // Act
+            var mappings = _sut.GetReturnColumnMappings("Entity", "MyReturnModel");
+
+            // Assert
+            Assert.IsFalse(mappings.Any(x => x.Contains("IsRequired")));
+        }
+
         private List<StoredProcedureParameter> GetParams()
         {
             return _sut.Parameters.Where(x => x.Mode != StoredProcedureParameterMode.Out).OrderBy(x => x.Ordinal).ToList();

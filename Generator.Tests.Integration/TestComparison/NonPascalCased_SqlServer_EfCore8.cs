@@ -243,6 +243,10 @@ namespace Efrpg.V4TestE8
         List<DSOpeProcReturnModel> DSOpeProc(out int procResult);
         Task<List<DSOpeProcReturnModel>> DSOpeProcAsync(CancellationToken cancellationToken = default(CancellationToken));
 
+        List<EnumTest_GetDaysOfWeekReturnModel> EnumTest_GetDaysOfWeek();
+        List<EnumTest_GetDaysOfWeekReturnModel> EnumTest_GetDaysOfWeek(out int procResult);
+        Task<List<EnumTest_GetDaysOfWeekReturnModel>> EnumTest_GetDaysOfWeekAsync(CancellationToken cancellationToken = default(CancellationToken));
+
         List<FFRS_cv_dataReturnModel> FFRS_cv_data(int? maxId);
         List<FFRS_cv_dataReturnModel> FFRS_cv_data(int? maxId, out int procResult);
         Task<List<FFRS_cv_dataReturnModel>> FFRS_cv_dataAsync(int? maxId, CancellationToken cancellationToken = default(CancellationToken));
@@ -688,6 +692,7 @@ namespace Efrpg.V4TestE8
             modelBuilder.Entity<dbo_proc_data_from_ffrs_and_dboReturnModel>().HasNoKey();
             modelBuilder.Entity<dbo_proc_data_from_ffrs_and_dboReturnModel>().Property(e => e.CVName).IsRequired(false);
             modelBuilder.Entity<DSOpeProcReturnModel>().HasNoKey();
+            modelBuilder.Entity<EnumTest_GetDaysOfWeekReturnModel>().HasNoKey();
             modelBuilder.Entity<FFRS_cv_dataReturnModel>().HasNoKey();
             modelBuilder.Entity<FFRS_cv_dataReturnModel>().Property(e => e.CVName).IsRequired(false);
             modelBuilder.Entity<FFRS_data_from_dboReturnModel>().HasNoKey();
@@ -1105,6 +1110,34 @@ namespace Efrpg.V4TestE8
         {
             const string sqlCommand = "EXEC [dbo].[DSOpeProc]";
             var procResultData = await Set<DSOpeProcReturnModel>()
+                .FromSqlRaw(sqlCommand)
+                .ToListAsync(cancellationToken);
+
+            return procResultData;
+        }
+
+        public List<EnumTest_GetDaysOfWeekReturnModel> EnumTest_GetDaysOfWeek()
+        {
+            int procResult;
+            return EnumTest_GetDaysOfWeek(out procResult);
+        }
+
+        public List<EnumTest_GetDaysOfWeekReturnModel> EnumTest_GetDaysOfWeek(out int procResult)
+        {
+            var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            const string sqlCommand = "EXEC @procResult = [EnumTest].[GetDaysOfWeek]";
+            var procResultData = Set<EnumTest_GetDaysOfWeekReturnModel>()
+                .FromSqlRaw(sqlCommand, procResultParam)
+                .ToList();
+
+            procResult = (int) procResultParam.Value;
+            return procResultData;
+        }
+
+        public async Task<List<EnumTest_GetDaysOfWeekReturnModel>> EnumTest_GetDaysOfWeekAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            const string sqlCommand = "EXEC [EnumTest].[GetDaysOfWeek]";
+            var procResultData = await Set<EnumTest_GetDaysOfWeekReturnModel>()
                 .FromSqlRaw(sqlCommand)
                 .ToListAsync(cancellationToken);
 
@@ -3084,6 +3117,25 @@ namespace Efrpg.V4TestE8
         {
             int procResult;
             return Task.FromResult(DSOpeProc(out procResult));
+        }
+
+        public DbSet<EnumTest_GetDaysOfWeekReturnModel> EnumTest_GetDaysOfWeekReturnModel { get; set; } = null!;
+        public List<EnumTest_GetDaysOfWeekReturnModel> EnumTest_GetDaysOfWeek()
+        {
+            int procResult;
+            return EnumTest_GetDaysOfWeek(out procResult);
+        }
+
+        public List<EnumTest_GetDaysOfWeekReturnModel> EnumTest_GetDaysOfWeek(out int procResult)
+        {
+            procResult = 0;
+            return new List<EnumTest_GetDaysOfWeekReturnModel>();
+        }
+
+        public Task<List<EnumTest_GetDaysOfWeekReturnModel>> EnumTest_GetDaysOfWeekAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            int procResult;
+            return Task.FromResult(EnumTest_GetDaysOfWeek(out procResult));
         }
 
         public DbSet<FFRS_cv_dataReturnModel> FFRS_cv_dataReturnModel { get; set; } = null!;
@@ -8135,6 +8187,13 @@ namespace Efrpg.V4TestE8
     {
         public int ID { get; set; }
         public bool? Selected { get; set; }
+    }
+
+    public class EnumTest_GetDaysOfWeekReturnModel
+    {
+        public int EnumId { get; set; }
+        public int? AlternateEnumId { get; set; }
+        public string TypeName { get; set; } = null!;
     }
 
     public class FFRS_CsvToInt2ReturnModel
