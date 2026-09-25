@@ -118,6 +118,21 @@ Note the connection string is also sitting in plaintext in the user's `Database.
 
 **Versioning.** The tool now lives in its own repository, and its `Efrpg.csproj` `<Version>` is ordinary SemVer for the NuGet package, deliberately **independent** of `BuildTT/version.txt`. Do not re-couple them - two repos on separate release cadences would otherwise be forced into lockstep releases forever. `SchemaVersion` is a separate monotonic integer and is the only thing any code branches on; the tool version travels in the payload as `toolVersion` purely so error messages can name it.
 
+### Licensing
+
+The licence is enforced by the `efrpg` tool, not the template. The tool reads and verifies `Documents\ReversePOCO.txt`
+and, without a valid licence, cuts the payload down to 10 keyed tables and 10 routines before writing a byte
+(`Licensing/TrialLimits.cs` in the tool repo). The outcome arrives as the `<Licence>` element (`RawLicence`), and the
+template only reports it: the header, the trial banner and the "Licence file ... not found" messages come from
+`Generator.ReportLicence`, in the words the template used when it read the file itself.
+
+Never put a licence check or a trial trim back into `Generator/`. The `.ttinclude` ships as editable source, so
+anything there can be deleted - which is why it moved. A schema version 1 tool enforces nothing, which is why
+`RequiredSchemaVersion` is 2.
+
+The tool chooses the trial's 10 tables before the template's filters run, because filters are C# in the user's `.tt`
+and cannot reach the tool. Filters therefore narrow within those 10 rather than choosing them.
+
 ### Template Types
 
 - `TemplateType.EfCore9` / `EfCore8` → uses `TemplateEfCore8` class with Mustache templates inline in C#

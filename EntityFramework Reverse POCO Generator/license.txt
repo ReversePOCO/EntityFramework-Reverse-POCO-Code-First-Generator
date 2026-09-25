@@ -31,6 +31,11 @@ WITH YOUR PURCHASE OR USE OF A LICENSE FOR USE OF THE REVERSE POCO MATERIALS.
         version 2.0 which can be found at http://www.apache.org/licenses. All portions of the Material 
         which are subject to the sub-licence, are clearly indicted within the code. 
 
+    1.4 Third-Party Components
+        The Materials include third-party components that are licensed under their own terms, which are
+        reproduced in the THIRD-PARTY-NOTICES file distributed with them. Those terms govern those
+        components. To the extent those terms permit, the restrictions in section 2 also apply to them.
+
 2. License Limitations and Prohibitions
 
     2.1 Limitations and Exclusions
@@ -55,6 +60,17 @@ WITH YOUR PURCHASE OR USE OF A LICENSE FOR USE OF THE REVERSE POCO MATERIALS.
             (f) provide or make available any features or functionality of the REVERSE 
                 POCO Materials to any other person or entity whether or not over a network 
                 and whether or not on a hosted basis;
+            (g) decompile, disassemble or reverse engineer the REVERSE POCO Materials, or otherwise
+                attempt to derive source code from any part of them provided only in object code or
+                executable form, except to the extent that applicable law (including sections 50B and
+                296A of the Copyright, Designs and Patents Act 1988) permits it notwithstanding this
+                restriction;
+            (h) remove, disable, bypass or modify any licence file check, trial limitation or other
+                technical protection mechanism in the REVERSE POCO Materials, including by using any
+                version of the REVERSE POCO Materials, or any part of one, to avoid the limitations of
+                another;
+            (i) remove, obscure or alter any copyright, licence or proprietary notice in the REVERSE
+                POCO Materials or in any third-party component distributed with them;
 
         2.1.2 Effect of Unauthorized Use
         The Licensee will not engage in and will not permit or assist any third party to engage in any of the 

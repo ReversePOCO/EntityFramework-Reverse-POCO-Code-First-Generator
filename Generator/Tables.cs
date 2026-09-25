@@ -48,34 +48,5 @@ namespace Efrpg
                 tbl.ResetNavigationProperties();
             }
         }
-
-        public void TrimForTrialLicence()
-        {
-            // Mapping tables do not count
-            const int n = 1 + 2 + 3 + 4;
-            TrimForLicence(n);
-        }
-
-        private void TrimForLicence(int n)
-        {
-            if (this.Count(x => !x.IsMapping) <= n)
-                return;
-
-            RemoveAll(x => !x.HasPrimaryKey);
-
-            while (this.Count(x => !x.IsMapping) > n)
-            {
-                try
-                {
-                    var index = FindIndex(x => !x.IsMapping);
-                    RemoveAt(index);
-                }
-                catch
-                {
-                    // Cannot remove anymore
-                    return;
-                }
-            }
-        }
     }
 }

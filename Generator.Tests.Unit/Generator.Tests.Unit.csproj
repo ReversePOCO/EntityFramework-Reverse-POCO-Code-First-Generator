@@ -126,6 +126,8 @@
     <Compile Include="FileScopedNamespaceTests.cs" />
     <Compile Include="FilterSettingsTests.cs" />
     <Compile Include="LicenceBannerTests.cs" />
+    <Compile Include="LicenceReportingTests.cs" />
+    <Compile Include="EfrpgResultXmlReaderLicenceTests.cs" />
     <Compile Include="ForeignKeyTests.cs" />
     <Compile Include="MinMaxValueCacheTests.cs" />
     <Compile Include="NullableReverseNavigationTests.cs" />

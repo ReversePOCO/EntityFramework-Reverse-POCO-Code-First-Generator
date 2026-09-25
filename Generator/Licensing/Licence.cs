@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Globalization;
-using System.Linq;
 
 namespace Efrpg.Licensing
 {
@@ -42,27 +40,6 @@ namespace Efrpg.Licensing
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-        }
-
-        public static LicenceType ParseLicenceType(string licenceType)
-        {
-            licenceType = licenceType.Substring(0, 5);
-            foreach (var type in Enum.GetValues(typeof(LicenceType)).Cast<LicenceType>())
-            {
-                if (GetLicenceType(type).Substring(0, 5) == licenceType)
-                    return type;
-            }
-            throw new ArgumentOutOfRangeException();
-        }
-
-        public override string ToString()
-        {
-            return string.Format("{0}|{1}|{2}|{3}|{4}",
-                RegisteredTo.ToUpperInvariant().Trim(),
-                Company.ToUpperInvariant().Trim(),
-                GetLicenceType(),
-                NumLicences.ToUpperInvariant().Trim(),
-                ValidUntil.ToString(LicenceConstants.ExpiryFormat, CultureInfo.InvariantCulture).ToUpperInvariant());
         }
     }
 }

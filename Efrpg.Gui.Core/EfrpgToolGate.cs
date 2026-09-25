@@ -29,7 +29,7 @@ namespace Efrpg.Gui
         ///     .ttinclude, and this assembly is netstandard2.0 while that one is net48 - so
         ///     ToolGateSchemaFloorTests guards the pair instead.
         /// </summary>
-        public const int RequiredSchemaVersion = 1;
+        public const int RequiredSchemaVersion = 2;
 
         public const string ExecutableName  = "efrpg";
         public const string PackageId       = "Efrpg";

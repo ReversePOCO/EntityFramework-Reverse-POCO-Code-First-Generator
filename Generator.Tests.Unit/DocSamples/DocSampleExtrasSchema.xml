@@ -13,14 +13,17 @@
 
     The equivalent DDL is in DocSampleExtrasSchema.sql.
 -->
-<EfrpgResult schemaVersion="1"
-             toolVersion="1.0.0"
+<EfrpgResult schemaVersion="2"
+             toolVersion="1.1.0"
              defaultSchema="dbo"
              databaseDetails=""
              includeSchema="true"
              canReadStoredProcedures="true"
              hasIdentityColumnSupport="true"
              doNotSpecifySizeForMaxLength="false">
+
+  <!-- Licensed, so no sample depends on whether the machine running the tests has a ReversePOCO.txt. -->
+  <Licence status="Valid" file="" registeredTo="" company="" licenceType="Commercial" numLicences="1" validUntil="31 DEC 9999" />
 
   <Tables>
     <!-- dbo.Student -->

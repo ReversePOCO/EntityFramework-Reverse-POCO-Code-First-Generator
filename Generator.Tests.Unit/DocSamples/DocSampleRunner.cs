@@ -325,9 +325,9 @@ namespace Generator.Tests.Unit.DocSamples
         ///     Removes the parts of the output that are not the generator's answer to the question the sample asks.
         /// </summary>
         /// <remarks>
-        ///     The trial-licence banner is the important one. Whether it appears depends on whether the machine
-        ///     running the tests has a ReversePOCO.txt, which would otherwise make every snippet differ between
-        ///     the author's machine and CI.
+        ///     The trial-licence banner is the important one. Whether it appears depends on the licence the payload
+        ///     carries. Both doc schemas carry a commercial one; this stays as the guard should either lose it, which
+        ///     would otherwise put the banner into every snippet.
         /// </remarks>
         private static string Normalise(string generated)
         {

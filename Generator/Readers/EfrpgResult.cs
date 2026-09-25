@@ -12,7 +12,9 @@ namespace Efrpg.Readers
         public bool   HasIdentityColumnSupport { get; set; } = false;
         public bool   DoNotSpecifySizeForMaxLength { get; set; } = false;
 
-        public List<EfrpgError>              Errors                { get; set; } = new List<EfrpgError>();
+        public RawLicence Licence { get; set; } = new RawLicence();
+
+        public List<EfrpgError>             Errors                { get; set; } = new List<EfrpgError>();
         public List<RawTable>                Tables                { get; set; } = new List<RawTable>();
         public List<RawForeignKey>           ForeignKeys           { get; set; } = new List<RawForeignKey>();
         public List<RawIndex>                Indexes               { get; set; } = new List<RawIndex>();

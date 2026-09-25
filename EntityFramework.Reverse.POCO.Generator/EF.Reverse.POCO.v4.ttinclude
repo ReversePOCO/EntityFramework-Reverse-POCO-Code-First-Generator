@@ -1,6 +1,6 @@
 <#
 // Copyright (C) Simon Hughes 2012
-// v4.0.49
+// v4.0.50
 // If you want to submit a pull request, please modify the Generator C# project as this file
 // is automatically constructed from the C# Generator project during the build process.
 #>
@@ -21,7 +21,6 @@
 <#@ import namespace="System.Linq" #>
 <#@ import namespace="System.Reflection" #>
 <#@ import namespace="System.Security" #>
-<#@ import namespace="System.Security.Cryptography" #>
 <#@ import namespace="System.Text" #>
 <#@ import namespace="System.Text.RegularExpressions" #>
 <#@ import namespace="System.Threading" #>
@@ -1920,7 +1919,7 @@
     {
         public static string Version()
         {
-            return "v4.0.49";
+            return "v4.0.50";
         }
     }
 
@@ -4003,7 +4002,6 @@
         protected abstract string GetForeignKeyConstraintName(string foreignKeyConstraintName);
 
         private LicenceType _licenceType;
-        private bool _hasTrialLicence;
         private FileHeaderFooter _fileHeaderFooter;
         private readonly StringBuilder _preHeaderInfo;
         private readonly string _codeGeneratedAttribute;
@@ -4029,18 +4027,15 @@
                 return;
             }
 
-            var licence = ReadAndValidateLicence();
-            if (licence == null)
-                return;
-
-            BuildPreHeaderInfo(licence);
-
             _result = result;
             if (_result == null)
             {
                 _fileManagementService.Error("// The efrpg tool returned no schema, so nothing can be generated.");
                 return;
             }
+
+            var licence = ReportLicence(_result.Licence);
+            BuildPreHeaderInfo(licence);
 
             var typeMapper = DatabaseToPropertyTypeFactory.Create();
             _dbTypeToPropertyType = typeMapper.GetMapping();
@@ -4061,7 +4056,6 @@
             }
 
             _licenceType = licence.LicenceType;
-            _hasTrialLicence = licence.LicenceType == LicenceType.Trial;
             InitialisationOk = FilterList.ReadDbContextSettings(_result, singleDbContextSubNamespace);
             _fileManagementService.Init(FilterList.GetFilters());
         }
@@ -4071,31 +4065,40 @@
             return _preHeaderInfo.ToString();
         }
 
-        private Licence ReadAndValidateLicence()
+        /// <summary>
+        ///     Reports the licence the efrpg tool found, in the words this template used when it read the file itself.
+        /// </summary>
+        /// <remarks>
+        ///     Reporting only. The tool verifies the licence and cuts a trial payload down before it is written, because
+        ///     this file ships as editable source and any check made here could be deleted. Never enforce anything here.
+        /// </remarks>
+        private Licence ReportLicence(RawLicence raw)
         {
-            var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            var file = Path.Combine(path, "ReversePOCO.txt");
             const string obtainAt = "// Please obtain your licence file at www.ReversePOCO.co.uk, and place it in your documents folder shown above.";
 
-            if (!File.Exists(file))
+            if (raw == null)
+                raw = new RawLicence();
+
+            switch (raw.Status)
             {
-                _fileManagementService.Error(string.Format("// Licence file {0} not found.", file));
-                _fileManagementService.Error(obtainAt);
-                return TrialLicenceFallback();
+                case LicenceStatus.Valid:
+                    return new Licence(raw.RegisteredTo, raw.Company, raw.LicenceType, raw.NumLicences, raw.ValidUntil); // Thank you for having a valid licence and supporting this product :-)
+
+                case LicenceStatus.NotFound:
+                    _fileManagementService.Error(string.Format("// Licence file {0} not found.", raw.File));
+                    break;
+
+                case LicenceStatus.Expired:
+                    _fileManagementService.Error(string.Format("// Your licence file {0} has expired.", raw.File));
+                    break;
+
+                default:
+                    _fileManagementService.Error(string.Format("// Your licence file {0} is not valid.", raw.File));
+                    break;
             }
 
-            var validator = new LicenceValidator();
-            if (!validator.Validate(File.ReadAllText(file)))
-            {
-                _fileManagementService.Error(validator.Expired
-                    ? string.Format("// Your licence file {0} has expired.", file)
-                    : string.Format("// Your licence file {0} is not valid.", file));
-
-                _fileManagementService.Error(obtainAt);
-                return TrialLicenceFallback();
-            }
-
-            return validator.Licence; // Thank you for having a valid licence and supporting this product :-)
+            _fileManagementService.Error(obtainAt);
+            return TrialLicenceFallback();
         }
 
         private Licence TrialLicenceFallback()
@@ -4826,9 +4829,6 @@
                 {
                     table.SetPrimaryKeys();
                 }
-
-                if (_hasTrialLicence)
-                    filter.Tables.TrimForTrialLicence();
             }
         }
 
@@ -4973,15 +4973,7 @@
                         if (!filter.IsExcluded(sp))
                         {
                             sp.ApplyEnumDefinitions(filter.EnumDefinitions);
-
-                            if (_hasTrialLicence)
-                            {
-                                const int n = 1 + 2 + 3 + 4;
-                                if (filter.StoredProcs.Count < n)
-                                    filter.StoredProcs.Add(sp);
-                            }
-                            else
-                                filter.StoredProcs.Add(sp);
+                            filter.StoredProcs.Add(sp);
                         }
                         else
                         {
@@ -5892,7 +5884,7 @@
                 _preHeaderInfo.AppendLine(string.Format("// {0}{1}", LicenceConstants.LicenceType, licence.GetLicenceType()));
                 _preHeaderInfo.AppendLine(string.Format("// {0}{1}", LicenceConstants.NumLicences, licence.NumLicences));
                 _preHeaderInfo.AppendLine(string.Format("// {0}{1}", LicenceConstants.ValidUntil,
-                    licence.ValidUntil.ToString(LicenceConstants.ExpiryFormat).ToUpperInvariant()));
+                    licence.ValidUntil.ToString(LicenceConstants.ExpiryFormat, CultureInfo.InvariantCulture).ToUpperInvariant()));
                 _preHeaderInfo.AppendLine("//");
             }
 
@@ -7829,75 +7821,6 @@
         }
     }
 
-    public class DigitalSignaturePublic
-    {
-        private readonly RSAParameters _publicKey;
-
-        public DigitalSignaturePublic()
-        {
-            _publicKey = new RSAParameters
-            {
-                Exponent = Hex.HexToByteArray("010001"),
-                Modulus = Hex.HexToByteArray("B9C08035CECAA5CE4442D2A44B62EAEC0FF337972E6DD7A2135FA00863607C0E6C3B7B25520A562F180C1479E832945F7F82721DE2E1DA01D572F734B92CA1A8EB5FC419FA6B34A2E71DCB0B25818D2ACA5AD8A41647C9814315887324562B422C835DA270D8843F8E44C02BEE4EFCC524F40807148EDCB5D43362F9F05077EF816177BD0C680A6B8A7005251C77BA8F43C47881967341FC7D3AAD9055CADA320E3AB5890E64FCD68B1B0E2E3661EABBB5FC087FBC2E495FC90769F92DE0BB9CFBFC15E36927B52DDD43A3BA7B47C713BCAA532CBD5DEAE60D1D1E6F6D31A6E871452528F0EB96803EC725BB67B4CA123840EAF04D0F5E74EAFE3AF7F9970021")
-            };
-        }
-
-        public bool VerifySignature(string text, byte[] signature)
-        {
-            using (var rsa = new RSACryptoServiceProvider(2048))
-            {
-                rsa.ImportParameters(_publicKey);
-                var rsaDeformatter = new RSAPKCS1SignatureDeformatter(rsa);
-                rsaDeformatter.SetHashAlgorithm("SHA256");
-                return rsaDeformatter.VerifySignature(HashText(text), signature);
-            }
-        }
-
-        private byte[] HashText(string text)
-        {
-            var provider = new SHA256CryptoServiceProvider();
-            var hash = provider.ComputeHash(Encoding.Unicode.GetBytes(text));
-            return hash;
-        }
-    }
-
-    public static class Hex
-    {
-        /// <summary>
-        /// Converts HEX string to byte array.
-        /// Opposite of ByteArrayToHex.
-        /// </summary>
-        public static byte[] HexToByteArray(string hexString)
-        {
-            if (hexString == null)
-                return null;
-
-            if ((hexString.Length % 2) != 0)
-                throw new ApplicationException("Hex string must be multiple of 2 in length");
-
-            var byteCount = hexString.Length / 2;
-            var byteValues = new byte[byteCount];
-            for (var i = 0; i < byteCount; i++)
-            {
-                byteValues[i] = Convert.ToByte(hexString.Substring(i * 2, 2), 16);
-            }
-
-            return byteValues;
-        }
-
-        /// <summary>
-        /// Convert bytes to 2 hex characters per byte, "-" separators are removed.
-        /// Opposite of HexToByteArray
-        /// </summary>
-        public static string ByteArrayToHex(byte[] data)
-        {
-            if (data == null)
-                return string.Empty;
-
-            return BitConverter.ToString(data).Replace("-", "");
-        }
-    }
-
     public class Licence
     {
         public string RegisteredTo { get; private set; }
@@ -7937,27 +7860,6 @@
                     throw new ArgumentOutOfRangeException();
             }
         }
-
-        public static LicenceType ParseLicenceType(string licenceType)
-        {
-            licenceType = licenceType.Substring(0, 5);
-            foreach (var type in Enum.GetValues(typeof(LicenceType)).Cast<LicenceType>())
-            {
-                if (GetLicenceType(type).Substring(0, 5) == licenceType)
-                    return type;
-            }
-            throw new ArgumentOutOfRangeException();
-        }
-
-        public override string ToString()
-        {
-            return string.Format("{0}|{1}|{2}|{3}|{4}",
-                RegisteredTo.ToUpperInvariant().Trim(),
-                Company.ToUpperInvariant().Trim(),
-                GetLicenceType(),
-                NumLicences.ToUpperInvariant().Trim(),
-                ValidUntil.ToString(LicenceConstants.ExpiryFormat, CultureInfo.InvariantCulture).ToUpperInvariant());
-        }
     }
     public static class LicenceConstants
     {
@@ -7969,74 +7871,19 @@
         public static string ValidUntil    = "Valid until  : ";
         public static string Signature     = "Signature:";
     }
+    // Parallel copy of the enum the efrpg tool declares. It crosses the process boundary by name, never by ordinal.
+    public enum LicenceStatus
+    {
+        Valid,
+        NotFound,
+        Expired,
+        Invalid
+    }
     public enum LicenceType
     {
         Academic,
         Commercial,
         Trial
-    }
-
-    public class LicenceValidator
-    {
-        private readonly DigitalSignaturePublic _ds;
-        public Licence Licence;
-        public bool Expired;
-
-        public LicenceValidator()
-        {
-            _ds = new DigitalSignaturePublic();
-        }
-
-        public bool Validate(string licenceInput)
-        {
-            try
-            {
-                var array = licenceInput.Replace("\n", "\r").Replace("\r\r", "\r").Trim().Split('\r');
-
-                var expiryText = ParseString(array, LicenceConstants.ValidUntil);
-                var parsedExpiry = DateTime.ParseExact(expiryText, LicenceConstants.ExpiryFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal);
-                var expiryEndOfDay = new DateTime(parsedExpiry.Year, parsedExpiry.Month, parsedExpiry.Day, 23, 59, 59, DateTimeKind.Local);
-                Expired = expiryEndOfDay < DateTime.Now;
-                if (Expired)
-                    return false;
-
-                Licence = new Licence(
-                    ParseString(array, LicenceConstants.RegisteredTo),
-                    ParseString(array, LicenceConstants.Company),
-                    Licence.ParseLicenceType(ParseString(array, LicenceConstants.LicenceType)),
-                    ParseString(array, LicenceConstants.NumLicences),
-                    expiryEndOfDay);
-
-                var foundSignature = false;
-                var sigUpperCase = LicenceConstants.Signature;
-                var signature = new StringBuilder(1024);
-                foreach (var line in array)
-                {
-                    if (foundSignature)
-                        signature.Append(line);
-                    else
-                    if (line.StartsWith(sigUpperCase))
-                        foundSignature = true;
-                }
-
-                return _ds.VerifySignature(Licence.ToString(), Hex.HexToByteArray(signature.ToString().Trim()));
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private string ParseString(string[] array, string find)
-        {
-            foreach (var line in array)
-            {
-                if (line.StartsWith(find))
-                    return line.Substring(line.IndexOf(':') + 2).Trim();
-            }
-
-            throw new ArgumentOutOfRangeException();
-        }
     }
 
     /// <summary>
@@ -12973,7 +12820,9 @@ and limitations under the License.
         public bool   HasIdentityColumnSupport { get; set; } = false;
         public bool   DoNotSpecifySizeForMaxLength { get; set; } = false;
 
-        public List<EfrpgError>              Errors                { get; set; } = new List<EfrpgError>();
+        public RawLicence Licence { get; set; } = new RawLicence();
+
+        public List<EfrpgError>             Errors                { get; set; } = new List<EfrpgError>();
         public List<RawTable>                Tables                { get; set; } = new List<RawTable>();
         public List<RawForeignKey>           ForeignKeys           { get; set; } = new List<RawForeignKey>();
         public List<RawIndex>                Indexes               { get; set; } = new List<RawIndex>();
@@ -12994,7 +12843,9 @@ and limitations under the License.
         // not know about are simply ignored. Only an OLDER tool is a problem, hence a floor check and not a match.
         // Raise this only when the reader starts depending on something a previous tool did not emit, and read the
         // "Wire format contract" section of AGENTS.md first.
-        public const int RequiredSchemaVersion = 1;
+        // 2: the tool enforces the licence and sends the outcome as <Licence>. A version 1 tool sends the whole schema
+        //    whether or not there is a licence, so it must be refused rather than trusted.
+        public const int RequiredSchemaVersion = 2;
 
         public static EfrpgResult Read(string xml)
         {
@@ -13018,8 +12869,9 @@ and limitations under the License.
                 CanReadStoredProcedures      = Bool(root, "canReadStoredProcedures"),
                 HasIdentityColumnSupport     = Bool(root, "hasIdentityColumnSupport"),
                 DoNotSpecifySizeForMaxLength = Bool(root, "doNotSpecifySizeForMaxLength"),
+                Licence                      = ReadLicence(root.Element("Licence")),
             };
-            result.Tables                = Rows(root, "Tables",               ReadTable);
+            result.Tables               = Rows(root, "Tables",               ReadTable);
             result.ForeignKeys           = Rows(root, "ForeignKeys",          ReadForeignKey);
             result.Indexes               = Rows(root, "Indexes",              ReadIndex);
             result.ExtendedProperties    = Rows(root, "ExtendedProperties",   ReadExtendedProperty);
@@ -13036,6 +12888,31 @@ and limitations under the License.
         {
             var el = parent.Element(section);
             return el != null ? el.Elements("Row").Select(reader).ToList() : new List<T>();
+        }
+
+        // Anything unrecognised reads as the less privileged value: a status a newer tool invented is reported as
+        // not valid, and an unknown licence type is a trial.
+        private static RawLicence ReadLicence(XElement e)
+        {
+            var licence = new RawLicence();
+            if (e == null)
+                return licence;
+
+            LicenceStatus status;
+            LicenceType licenceType;
+            DateTime validUntil;
+
+            licence.Status       = Enum.TryParse(Str(e, "status"), true, out status) ? status : LicenceStatus.Invalid;
+            licence.File         = Str(e, "file");
+            licence.RegisteredTo = Str(e, "registeredTo");
+            licence.Company      = Str(e, "company");
+            licence.LicenceType  = Enum.TryParse(Str(e, "licenceType"), true, out licenceType) ? licenceType : LicenceType.Trial;
+            licence.NumLicences  = Str(e, "numLicences");
+            licence.ValidUntil   = DateTime.TryParseExact(Str(e, "validUntil"), LicenceConstants.ExpiryFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out validUntil)
+                ? validUntil
+                : DateTime.MaxValue;
+
+            return licence;
         }
 
         private static RawTable ReadTable(XElement e)
@@ -13624,6 +13501,19 @@ and limitations under the License.
                 Schema, TableName, IndexName, KeyOrdinal, ColumnName, ColumnCount, IsUnique ? "true" : "false", IsPrimaryKey ? "true" : "false",
                 IsUniqueConstraint ? "true" : "false", IsClustered ? "true" : "false", FilterDefinition, string.Join(",", IncludedColumns));
         }
+    }
+
+    // The licence the efrpg tool read the database under. The tool enforces it; the template only reports it.
+    // Defaults to a trial with no file found, so a result that never carried one cannot pass for a licensed run.
+    public class RawLicence
+    {
+        public LicenceStatus Status       { get; set; } = LicenceStatus.NotFound;
+        public string        File         { get; set; } = string.Empty;
+        public string        RegisteredTo { get; set; } = string.Empty;
+        public string        Company      { get; set; } = string.Empty;
+        public LicenceType   LicenceType  { get; set; } = LicenceType.Trial;
+        public string        NumLicences  { get; set; } = "1";
+        public DateTime      ValidUntil   { get; set; } = DateTime.MaxValue;
     }
     public class RawMemoryOptimisedTable
     {
@@ -15130,35 +15020,6 @@ and limitations under the License.
             foreach (var tbl in this)
             {
                 tbl.ResetNavigationProperties();
-            }
-        }
-
-        public void TrimForTrialLicence()
-        {
-            // Mapping tables do not count
-            const int n = 1 + 2 + 3 + 4;
-            TrimForLicence(n);
-        }
-
-        private void TrimForLicence(int n)
-        {
-            if (this.Count(x => !x.IsMapping) <= n)
-                return;
-
-            RemoveAll(x => !x.HasPrimaryKey);
-
-            while (this.Count(x => !x.IsMapping) > n)
-            {
-                try
-                {
-                    var index = FindIndex(x => !x.IsMapping);
-                    RemoveAt(index);
-                }
-                catch
-                {
-                    // Cannot remove anymore
-                    return;
-                }
             }
         }
     }

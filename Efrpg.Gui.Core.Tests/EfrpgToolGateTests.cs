@@ -17,7 +17,7 @@ namespace Efrpg.Gui.Tests
         private const string FallbackPath = @"C:\Users\test\.dotnet\tools\efrpg.exe";
 
         /// <summary>What a current tool actually prints, copied from a real run.</summary>
-        private const string CurrentToolOutput = "efrpg 1.0.1\r\nwire format schema version 1";
+        private const string CurrentToolOutput = "efrpg 1.1.0\r\nwire format schema version 2";
 
         private static FakeProcessRunner RunnerWithSdk()
         {
@@ -62,7 +62,7 @@ namespace Efrpg.Gui.Tests
             var status = await Check(runner);
 
             Assert.That(status.State, Is.EqualTo(EfrpgToolState.Ready));
-            Assert.That(status.ToolVersion, Is.EqualTo("1.0.1"));
+            Assert.That(status.ToolVersion, Is.EqualTo("1.1.0"));
             Assert.That(status.SchemaVersion, Is.EqualTo(EfrpgToolGate.RequiredSchemaVersion));
             Assert.That(status.FixCommand, Is.Null);
         }
@@ -107,6 +107,20 @@ namespace Efrpg.Gui.Tests
             Assert.That(status.State, Is.EqualTo(EfrpgToolState.SchemaTooOld));
             Assert.That(status.SchemaVersion, Is.EqualTo(0));
             Assert.That(status.FixCommand, Is.EqualTo("dotnet tool update -g Efrpg"));
+        }
+
+        /// <summary>
+        ///     A schema 1 tool sends the whole schema whatever the licence says, so it must be refused rather than used.
+        /// </summary>
+        [Test]
+        public async Task CheckAsync_ToolThatDoesNotEnforceTheLicence_IsTooOld()
+        {
+            var runner = RunnerWithSdk()
+                .Answer("efrpg", "--version", ProcessResult.Completed(0, "efrpg 1.0.2\r\nwire format schema version 1", string.Empty));
+
+            var status = await Check(runner);
+
+            Assert.That(status.State, Is.EqualTo(EfrpgToolState.SchemaTooOld));
         }
 
         /// <summary>

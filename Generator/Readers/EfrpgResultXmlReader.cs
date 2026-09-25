@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Xml.Linq;
 using Efrpg.Filtering;
+using Efrpg.Licensing;
 
 namespace Efrpg.Readers
 {
@@ -14,7 +16,9 @@ namespace Efrpg.Readers
         // not know about are simply ignored. Only an OLDER tool is a problem, hence a floor check and not a match.
         // Raise this only when the reader starts depending on something a previous tool did not emit, and read the
         // "Wire format contract" section of AGENTS.md first.
-        public const int RequiredSchemaVersion = 1;
+        // 2: the tool enforces the licence and sends the outcome as <Licence>. A version 1 tool sends the whole schema
+        //    whether or not there is a licence, so it must be refused rather than trusted.
+        public const int RequiredSchemaVersion = 2;
 
         public static EfrpgResult Read(string xml)
         {
@@ -38,8 +42,9 @@ namespace Efrpg.Readers
                 CanReadStoredProcedures      = Bool(root, "canReadStoredProcedures"),
                 HasIdentityColumnSupport     = Bool(root, "hasIdentityColumnSupport"),
                 DoNotSpecifySizeForMaxLength = Bool(root, "doNotSpecifySizeForMaxLength"),
+                Licence                      = ReadLicence(root.Element("Licence")),
             };
-            result.Tables                = Rows(root, "Tables",               ReadTable);
+            result.Tables               = Rows(root, "Tables",               ReadTable);
             result.ForeignKeys           = Rows(root, "ForeignKeys",          ReadForeignKey);
             result.Indexes               = Rows(root, "Indexes",              ReadIndex);
             result.ExtendedProperties    = Rows(root, "ExtendedProperties",   ReadExtendedProperty);
@@ -56,6 +61,31 @@ namespace Efrpg.Readers
         {
             var el = parent.Element(section);
             return el != null ? el.Elements("Row").Select(reader).ToList() : new List<T>();
+        }
+
+        // Anything unrecognised reads as the less privileged value: a status a newer tool invented is reported as
+        // not valid, and an unknown licence type is a trial.
+        private static RawLicence ReadLicence(XElement e)
+        {
+            var licence = new RawLicence();
+            if (e == null)
+                return licence;
+
+            LicenceStatus status;
+            LicenceType licenceType;
+            DateTime validUntil;
+
+            licence.Status       = Enum.TryParse(Str(e, "status"), true, out status) ? status : LicenceStatus.Invalid;
+            licence.File         = Str(e, "file");
+            licence.RegisteredTo = Str(e, "registeredTo");
+            licence.Company      = Str(e, "company");
+            licence.LicenceType  = Enum.TryParse(Str(e, "licenceType"), true, out licenceType) ? licenceType : LicenceType.Trial;
+            licence.NumLicences  = Str(e, "numLicences");
+            licence.ValidUntil   = DateTime.TryParseExact(Str(e, "validUntil"), LicenceConstants.ExpiryFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out validUntil)
+                ? validUntil
+                : DateTime.MaxValue;
+
+            return licence;
         }
 
         private static RawTable ReadTable(XElement e)

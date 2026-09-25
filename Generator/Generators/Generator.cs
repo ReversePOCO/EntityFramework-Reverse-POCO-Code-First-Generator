@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -84,7 +85,6 @@ namespace Efrpg.Generators
         protected abstract string GetForeignKeyConstraintName(string foreignKeyConstraintName);
 
         private LicenceType _licenceType;
-        private bool _hasTrialLicence;
         private FileHeaderFooter _fileHeaderFooter;
         private readonly StringBuilder _preHeaderInfo;
         private readonly string _codeGeneratedAttribute;
@@ -110,18 +110,15 @@ namespace Efrpg.Generators
                 return;
             }
 
-            var licence = ReadAndValidateLicence();
-            if (licence == null)
-                return;
-
-            BuildPreHeaderInfo(licence);
-
             _result = result;
             if (_result == null)
             {
                 _fileManagementService.Error("// The efrpg tool returned no schema, so nothing can be generated.");
                 return;
             }
+
+            var licence = ReportLicence(_result.Licence);
+            BuildPreHeaderInfo(licence);
 
             var typeMapper = DatabaseToPropertyTypeFactory.Create();
             _dbTypeToPropertyType = typeMapper.GetMapping();
@@ -142,7 +139,6 @@ namespace Efrpg.Generators
             }
 
             _licenceType = licence.LicenceType;
-            _hasTrialLicence = licence.LicenceType == LicenceType.Trial;
             InitialisationOk = FilterList.ReadDbContextSettings(_result, singleDbContextSubNamespace);
             _fileManagementService.Init(FilterList.GetFilters());
         }
@@ -152,31 +148,40 @@ namespace Efrpg.Generators
             return _preHeaderInfo.ToString();
         }
 
-        private Licence ReadAndValidateLicence()
+        /// <summary>
+        ///     Reports the licence the efrpg tool found, in the words this template used when it read the file itself.
+        /// </summary>
+        /// <remarks>
+        ///     Reporting only. The tool verifies the licence and cuts a trial payload down before it is written, because
+        ///     this file ships as editable source and any check made here could be deleted. Never enforce anything here.
+        /// </remarks>
+        private Licence ReportLicence(RawLicence raw)
         {
-            var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            var file = Path.Combine(path, "ReversePOCO.txt");
             const string obtainAt = "// Please obtain your licence file at www.ReversePOCO.co.uk, and place it in your documents folder shown above.";
 
-            if (!File.Exists(file))
+            if (raw == null)
+                raw = new RawLicence();
+
+            switch (raw.Status)
             {
-                _fileManagementService.Error(string.Format("// Licence file {0} not found.", file));
-                _fileManagementService.Error(obtainAt);
-                return TrialLicenceFallback();
+                case LicenceStatus.Valid:
+                    return new Licence(raw.RegisteredTo, raw.Company, raw.LicenceType, raw.NumLicences, raw.ValidUntil); // Thank you for having a valid licence and supporting this product :-)
+
+                case LicenceStatus.NotFound:
+                    _fileManagementService.Error(string.Format("// Licence file {0} not found.", raw.File));
+                    break;
+
+                case LicenceStatus.Expired:
+                    _fileManagementService.Error(string.Format("// Your licence file {0} has expired.", raw.File));
+                    break;
+
+                default:
+                    _fileManagementService.Error(string.Format("// Your licence file {0} is not valid.", raw.File));
+                    break;
             }
 
-            var validator = new LicenceValidator();
-            if (!validator.Validate(File.ReadAllText(file)))
-            {
-                _fileManagementService.Error(validator.Expired
-                    ? string.Format("// Your licence file {0} has expired.", file)
-                    : string.Format("// Your licence file {0} is not valid.", file));
-
-                _fileManagementService.Error(obtainAt);
-                return TrialLicenceFallback();
-            }
-
-            return validator.Licence; // Thank you for having a valid licence and supporting this product :-)
+            _fileManagementService.Error(obtainAt);
+            return TrialLicenceFallback();
         }
 
         private Licence TrialLicenceFallback()
@@ -907,9 +912,6 @@ namespace Efrpg.Generators
                 {
                     table.SetPrimaryKeys();
                 }
-
-                if (_hasTrialLicence)
-                    filter.Tables.TrimForTrialLicence();
             }
         }
 
@@ -1054,15 +1056,7 @@ namespace Efrpg.Generators
                         if (!filter.IsExcluded(sp))
                         {
                             sp.ApplyEnumDefinitions(filter.EnumDefinitions);
-
-                            if (_hasTrialLicence)
-                            {
-                                const int n = 1 + 2 + 3 + 4;
-                                if (filter.StoredProcs.Count < n)
-                                    filter.StoredProcs.Add(sp);
-                            }
-                            else
-                                filter.StoredProcs.Add(sp);
+                            filter.StoredProcs.Add(sp);
                         }
                         else
                         {
@@ -1973,7 +1967,7 @@ namespace Efrpg.Generators
                 _preHeaderInfo.AppendLine(string.Format("// {0}{1}", LicenceConstants.LicenceType, licence.GetLicenceType()));
                 _preHeaderInfo.AppendLine(string.Format("// {0}{1}", LicenceConstants.NumLicences, licence.NumLicences));
                 _preHeaderInfo.AppendLine(string.Format("// {0}{1}", LicenceConstants.ValidUntil,
-                    licence.ValidUntil.ToString(LicenceConstants.ExpiryFormat).ToUpperInvariant()));
+                    licence.ValidUntil.ToString(LicenceConstants.ExpiryFormat, CultureInfo.InvariantCulture).ToUpperInvariant()));
                 _preHeaderInfo.AppendLine("//");
             }
 
