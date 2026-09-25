@@ -39,10 +39,18 @@ namespace Efrpg.Gui
         /// </summary>
         public int LineCommentIndex { get; private set; }
 
+        /// <summary>
+        ///     Index of the last character within the line last passed to <see cref="Feed" /> that is code: not
+        ///     whitespace and not part of a comment. A literal counts as code, whatever it contains. -1 when the line
+        ///     has none. This is how an append finds the character a separating comma belongs after.
+        /// </summary>
+        public int LastCodeIndex { get; private set; }
+
         public void Feed(string line)
         {
             TerminatorIndex  = -1;
             LineCommentIndex = -1;
+            LastCodeIndex    = -1;
 
             for (var i = 0; i < line.Length; i++)
             {
@@ -61,15 +69,22 @@ namespace Efrpg.Gui
 
                 if (_inVerbatimString)
                 {
+                    LastCodeIndex = i;
                     if (c != '"')
                         continue;
 
                     if (next == '"')
+                    {
                         i++; // "" is an escaped quote inside a verbatim string
+                        LastCodeIndex = i;
+                    }
                     else
                         _inVerbatimString = false;
                     continue;
                 }
+
+                if (!char.IsWhiteSpace(c) && !(c == '/' && (next == '/' || next == '*')))
+                    LastCodeIndex = i;
 
                 switch (c)
                 {
@@ -78,15 +93,18 @@ namespace Efrpg.Gui
                         {
                             _inVerbatimString = true;
                             i++;
+                            LastCodeIndex = i;
                         }
                         break;
 
                     case '"':
                         i = SkipQuoted(line, i, '"');
+                        LastCodeIndex = i < line.Length ? i : line.Length - 1;
                         break;
 
                     case '\'':
                         i = SkipQuoted(line, i, '\'');
+                        LastCodeIndex = i < line.Length ? i : line.Length - 1;
                         break;
 
                     case '/':

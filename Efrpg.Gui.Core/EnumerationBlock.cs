@@ -14,6 +14,12 @@ namespace Efrpg.Gui
     {
         public const string SettingName = "Enumerations";
 
+        /// <summary>
+        ///     The widest table still treated as a lookup. Besides its key and name, a lookup table commonly carries a
+        ///     description, a sort order, an active flag and audit columns, and it must still be offered.
+        /// </summary>
+        public const int MaxLookupColumns = 10;
+
         private static readonly Regex Initialiser =
             new Regex(@"^\s*new\s+List\s*<\s*EnumerationSettings\s*>\s*(\(\s*\))?\s*\{", RegexOptions.Singleline);
 
@@ -40,6 +46,13 @@ namespace Efrpg.Gui
         ///     Returns the document with the entry added as the last element of the initialiser, immediately
         ///     before the <c>}</c> that closes it on the statement's final line.
         /// </summary>
+        /// <remarks>
+        ///     The entry copies the layout it finds rather than assuming the shipped one. Its indentation is that of
+        ///     the entries already there, and its inner step is how far they sit inside the list's braces, so a block
+        ///     whose Settings line starts in column 0, or one written with two spaces or tabs, stays consistent. When
+        ///     the last entry has no separating comma - the normal way to write a list by hand - one is added after it,
+        ///     and the new entry then ends without one too, matching the style it found.
+        /// </remarks>
         public static TemplateSettingsDocument Append(TemplateSettingsDocument document, EnumerationEntry entry)
         {
             if (entry == null)
@@ -54,23 +67,91 @@ namespace Efrpg.Gui
 
             var assignment = document.Find(SettingName);
             var statement  = document.StatementText(assignment).Replace("\r\n", "\n").Split('\n');
-            var last       = statement[statement.Length - 1];
-            var close      = last.LastIndexOf('}');
+            var lastIndex  = statement.Length - 1;
+            var last       = statement[lastIndex];
+            var close      = ClosingBrace(statement);
 
             if (close < 0 || statement.Length < 2)
                 throw new InvalidOperationException("The Settings." + SettingName + " block does not end with a closing brace on its own line.");
 
-            // Entries sit one level inside the braces, which is where the first existing line of the body is.
-            var indent = assignment.Indent + "    ";
+            // The list's own brace is the first in the statement: CannotAppendReason has checked that only
+            // "new List<EnumerationSettings>" stands between it and the equals sign.
+            var openLine    = Array.FindIndex(statement, l => l.IndexOf('{') >= 0);
+            var braceIndent = LeadingWhitespace(statement[openLine]);
 
-            var lines = entry.ToLines(indent).ToList();
-
-            // Anything on the closing line before the brace (text after the last entry) is kept ahead of the new entry.
+            // Anything on the closing line before the brace is the end of the last entry, kept ahead of the new one.
             var before = last.Substring(0, close);
+
+            var body = statement.Skip(openLine + 1).Take(Math.Max(0, lastIndex - openLine - 1)).ToList();
+            if (openLine < lastIndex && before.Trim().Length > 0)
+                body.Add(before);
+
+            var firstBodyLine = body.FirstOrDefault(l => l.Trim().Length > 0);
+            var indent        = firstBodyLine == null ? null : LeadingWhitespace(firstBodyLine);
+            var step          = indent != null && indent.Length > braceIndent.Length && indent.StartsWith(braceIndent, StringComparison.Ordinal)
+                ? indent.Substring(braceIndent.Length)
+                : braceIndent.IndexOf('\t') >= 0 ? "\t" : "    ";
+            if (indent == null)
+                indent = braceIndent + step;
+
+            // The last character of code before the closing brace says whether a comma is missing: the list's own
+            // "{" when it is empty, a "," when the last entry already has one, anything else when it does not.
+            var scanner   = new StatementScanner();
+            var codeLine  = -1;
+            var codeIndex = -1;
+            for (var i = 0; i < lastIndex; i++)
+            {
+                scanner.Feed(statement[i]);
+                if (scanner.LastCodeIndex >= 0)
+                {
+                    codeLine  = i;
+                    codeIndex = scanner.LastCodeIndex;
+                }
+            }
+
+            scanner.Feed(before);
+            if (scanner.LastCodeIndex >= 0)
+            {
+                codeLine  = lastIndex;
+                codeIndex = scanner.LastCodeIndex;
+            }
+
+            var lastCode   = codeLine < 0 ? '{' : (codeLine == lastIndex ? before : statement[codeLine])[codeIndex];
+            var needsComma = lastCode != '{' && lastCode != ',';
+
+            var result = document;
+            if (needsComma)
+            {
+                if (codeLine == lastIndex)
+                    before = before.Insert(codeIndex + 1, ",");
+                else
+                    result = result.WithLinesBeforeLine(assignment.LineNumber + codeLine, new string[0], statement[codeLine].Insert(codeIndex + 1, ","));
+            }
+
+            var lines = entry.ToLines(indent, step, trailingComma: !needsComma).ToList();
             if (before.Trim().Length > 0)
                 lines.Insert(0, before.TrimEnd());
 
-            return document.WithLinesBeforeLine(assignment.EndLineNumber, lines, before.Trim().Length > 0 ? last.Substring(close) : null);
+            return result.WithLinesBeforeLine(assignment.EndLineNumber, lines, before.Trim().Length > 0 ? braceIndent + last.Substring(close) : null);
+        }
+
+        /// <summary>
+        ///     The list's closing brace on the statement's last line: the last one before the terminating semicolon,
+        ///     so a brace in a comment after the statement is not taken for it.
+        /// </summary>
+        private static int ClosingBrace(IReadOnlyList<string> statement)
+        {
+            var scanner = new StatementScanner();
+            foreach (var line in statement)
+                scanner.Feed(line);
+
+            var last = statement[statement.Count - 1];
+            return scanner.TerminatorIndex >= 0 ? last.LastIndexOf('}', scanner.TerminatorIndex) : last.LastIndexOf('}');
+        }
+
+        private static string LeadingWhitespace(string line)
+        {
+            return line.Substring(0, line.Length - line.TrimStart(' ', '\t').Length);
         }
 
         /// <summary>True when the block already names this table, by plain text rather than parsing; for a warning, not a refusal.</summary>
@@ -91,8 +172,7 @@ namespace Efrpg.Gui
 
         /// <summary>
         ///     Every table, in name order, so the dropdown reads like a list rather than a ranking. Views are left
-        ///     out: an enum is read from a table. <see cref="LooksLikeEnumTable"/> is there for a caller that wants
-        ///     to mark the likely ones.
+        ///     out: an enum is read from a table.
         /// </summary>
         public static IReadOnlyList<DatabaseObject> Candidates(DatabaseSchema schema)
         {
@@ -104,18 +184,43 @@ namespace Efrpg.Gui
                 .ToList();
         }
 
+        /// <summary>
+        ///     The tables the Add enumeration form offers, in name order: only those that look like lookups, unless
+        ///     <paramref name="showAllTables"/> is set. When no table looks like one, every table is offered anyway,
+        ///     because an empty dropdown would leave the user nowhere to go.
+        /// </summary>
+        public static IReadOnlyList<DatabaseObject> Candidates(DatabaseSchema schema, bool showAllTables)
+        {
+            var tables = Candidates(schema);
+            if (showAllTables)
+                return tables;
+
+            var lookups = tables.Where(LooksLikeEnumTable).ToList();
+            return lookups.Count > 0 ? lookups : tables;
+        }
+
+        public static bool HasLookupTables(DatabaseSchema schema)
+        {
+            return Candidates(schema).Any(LooksLikeEnumTable);
+        }
+
         public static bool LooksLikeEnumTable(DatabaseObject table)
         {
             return table != null &&
                    table.Columns.Any(c => c.IsIntegral) &&
                    table.Columns.Any(c => c.IsText) &&
-                   table.Columns.Count <= 6;
+                   table.Columns.Count <= MaxLookupColumns;
         }
 
         /// <summary>
         ///     The entry a table most likely wants: its integral key as the value, its first text column as the
-        ///     name, and the table's name in PascalCase as the enum's.
+        ///     name, and the table's name in PascalCase with Enum appended as the enum's.
         /// </summary>
+        /// <remarks>
+        ///     The suffix is there because the table is usually generated as an entity too, under much the same name,
+        ///     and the generator does not check an enum against the classes beside it: the plain name would be two
+        ///     types with one name, which does not compile. The shipped AddEnum example appends Enum for the same reason.
+        /// </remarks>
         public static EnumerationEntry Suggest(DatabaseObject table)
         {
             if (table == null)
@@ -126,7 +231,11 @@ namespace Efrpg.Gui
             var name  = table.Columns.FirstOrDefault(c => c.IsText && !c.IsPrimaryKey)
                         ?? table.Columns.FirstOrDefault(c => c.IsText);
 
-            return new EnumerationEntry(PascalCase(table.Name), table.FullName,
+            var enumName = PascalCase(table.Name);
+            if (!enumName.EndsWith("Enum", StringComparison.Ordinal))
+                enumName += "Enum";
+
+            return new EnumerationEntry(enumName, table.FullName,
                 name == null ? string.Empty : name.Name,
                 value == null ? string.Empty : value.Name,
                 string.Empty);

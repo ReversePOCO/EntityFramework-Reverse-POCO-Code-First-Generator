@@ -60,13 +60,14 @@ namespace Efrpg.Gui
         public bool IsValid => Problem == null;
 
         /// <summary>
-        ///     The initialiser as lines, indented for the block it joins, with a trailing comma so the entry before
-        ///     it never needs one added.
+        ///     The initialiser as lines, laid out like the block it joins: <paramref name="indent" /> for the entry,
+        ///     one <paramref name="step" /> further for its properties, and a trailing comma only when the block's
+        ///     entries end with one.
         /// </summary>
-        public IReadOnlyList<string> ToLines(string indent)
+        public IReadOnlyList<string> ToLines(string indent, string step = "    ", bool trailingComma = true)
         {
             indent = indent ?? string.Empty;
-            var inner = indent + "    ";
+            var inner = indent + (step ?? "    ");
 
             var lines = new List<string>
             {
@@ -81,7 +82,7 @@ namespace Efrpg.Gui
             if (GroupField.Length > 0)
                 lines.Add(inner + "GroupField = " + Quote(GroupField));
 
-            lines.Add(indent + "},");
+            lines.Add(indent + (trailingComma ? "}," : "}"));
             return lines;
         }
 

@@ -68,6 +68,184 @@ namespace Efrpg.Gui.Tests
             Assert.That(text, Does.Contain("ValueField = \"Id\",\n            GroupField = \"GroupName\"\n").Or.Contain("ValueField = \"Id\",\r\n            GroupField = \"GroupName\"\r\n"));
         }
 
+        /// <summary>
+        ///     The block from EfCoreReference\Net10\EfrpgTest.tt, where one append produced code that did not compile:
+        ///     its last entry has no trailing comma, and its Settings line starts in column 0 while the entries sit
+        ///     eight spaces in, so indenting from the Settings line put the new entry four spaces short.
+        /// </summary>
+        [Test]
+        public void Append_LastEntryWithoutATrailingComma_AddsTheCommaAndMatchesTheEntries()
+        {
+            const string existing =
+                "Settings.Enumerations = new List<EnumerationSettings>\n" +
+                "    {\n" +
+                "        new EnumerationSettings\n" +
+                "        {\n" +
+                "            Name       = \"RegionDescription\",\n" +
+                "            Table      = \"Region\",\n" +
+                "            NameField  = \"RegionDescription\",\n" +
+                "            ValueField = \"RegionID\"\n" +
+                "        },\n" +
+                "        new EnumerationSettings\n" +
+                "        {\n" +
+                "            Name       = \"ShipperName\",\n" +
+                "            Table      = \"Shippers\",\n" +
+                "            NameField  = \"CompanyName\",\n" +
+                "            ValueField = \"ShipperID\"\n" +
+                "        }\n" +
+                "    };";
+
+            var appended = EnumerationBlock.Append(Template(existing), Car);
+
+            Assert.That(Statement(appended), Is.EqualTo(
+                "Settings.Enumerations = new List<EnumerationSettings>\n" +
+                "    {\n" +
+                "        new EnumerationSettings\n" +
+                "        {\n" +
+                "            Name       = \"RegionDescription\",\n" +
+                "            Table      = \"Region\",\n" +
+                "            NameField  = \"RegionDescription\",\n" +
+                "            ValueField = \"RegionID\"\n" +
+                "        },\n" +
+                "        new EnumerationSettings\n" +
+                "        {\n" +
+                "            Name       = \"ShipperName\",\n" +
+                "            Table      = \"Shippers\",\n" +
+                "            NameField  = \"CompanyName\",\n" +
+                "            ValueField = \"ShipperID\"\n" +
+                "        },\n" +
+                "        new EnumerationSettings\n" +
+                "        {\n" +
+                "            Name       = \"CarEnum\",\n" +
+                "            Table      = \"dbo.Car\",\n" +
+                "            NameField  = \"CarMake\",\n" +
+                "            ValueField = \"Id\"\n" +
+                "        }\n" +
+                "    };"));
+        }
+
+        /// <summary>
+        ///     The new entry takes its indentation from the entries already there, and its inner step from how far
+        ///     they sit inside the list's braces, whatever the Settings line itself is indented by.
+        /// </summary>
+        [TestCase("", "    ", "        ", "    ", TestName = "Append matches entries eight in under a Settings line in column 0")]
+        [TestCase("    ", "    ", "        ", "    ", TestName = "Append matches the shipped layout")]
+        [TestCase("        ", "        ", "            ", "    ", TestName = "Append matches a block nested a level deeper")]
+        [TestCase("    ", "    ", "      ", "  ", TestName = "Append matches two-space indentation")]
+        [TestCase("\t", "\t", "\t\t", "\t", TestName = "Append matches tab indentation")]
+        public void Append_AnyIndentation_TheNewEntryMatchesTheExistingOnes(string settingsIndent, string braceIndent, string entryIndent, string step)
+        {
+            var existing = Block(settingsIndent, braceIndent, entryIndent, step, AEnum);
+
+            var appended = EnumerationBlock.Append(Template(existing), Car);
+
+            Assert.That(Statement(appended), Is.EqualTo(Block(settingsIndent, braceIndent, entryIndent, step, AEnum, Car)));
+        }
+
+        [Test]
+        public void Append_LastEntryAlreadyEndsWithAComma_AddsNoSecondCommaAndKeepsTrailingCommas()
+        {
+            var existing = Block("    ", "    ", "        ", "    ", AEnum).Replace("        }\n    };", "        },\n    };");
+
+            var appended = EnumerationBlock.Append(Template(existing), Car);
+
+            Assert.That(Statement(appended), Is.EqualTo(Block("    ", "    ", "        ", "    ", AEnum, Car).Replace("        }\n    };", "        },\n    };")));
+        }
+
+        [Test]
+        public void Append_LastEntryFollowedByAComment_PutsTheCommaBeforeTheComment()
+        {
+            var existing = Block("    ", "    ", "        ", "    ", AEnum).Replace("        }\n    };", "        } // the only one\n    };");
+
+            var appended = EnumerationBlock.Append(Template(existing), Car);
+
+            Assert.That(Statement(appended), Does.Contain("        }, // the only one\n        new EnumerationSettings\n"));
+        }
+
+        [Test]
+        public void Append_EmptyList_AddsTheEntryOneStepInsideTheBracesWithNoStrayComma()
+        {
+            const string existing =
+                "    Settings.Enumerations = new List<EnumerationSettings>\n" +
+                "    {\n" +
+                "    };";
+
+            var appended = EnumerationBlock.Append(Template(existing), Car);
+
+            Assert.That(Statement(appended), Is.EqualTo(
+                "    Settings.Enumerations = new List<EnumerationSettings>\n" +
+                "    {\n" +
+                "        new EnumerationSettings\n" +
+                "        {\n" +
+                "            Name       = \"CarEnum\",\n" +
+                "            Table      = \"dbo.Car\",\n" +
+                "            NameField  = \"CarMake\",\n" +
+                "            ValueField = \"Id\"\n" +
+                "        },\n" +
+                "    };"));
+        }
+
+        [Test]
+        public void Append_LastEntryClosesOnTheListsOwnLine_SplitsItAddsTheCommaAndIndentsTheCloser()
+        {
+            const string existing =
+                "    Settings.Enumerations = new List<EnumerationSettings>\n" +
+                "    {\n" +
+                "        new EnumerationSettings { Name = \"AEnum\", Table = \"dbo.A\", NameField = \"Name\", ValueField = \"Id\" } };";
+
+            var appended = EnumerationBlock.Append(Template(existing), Car);
+
+            Assert.That(Statement(appended), Is.EqualTo(
+                "    Settings.Enumerations = new List<EnumerationSettings>\n" +
+                "    {\n" +
+                "        new EnumerationSettings { Name = \"AEnum\", Table = \"dbo.A\", NameField = \"Name\", ValueField = \"Id\" },\n" +
+                "        new EnumerationSettings\n" +
+                "        {\n" +
+                "            Name       = \"CarEnum\",\n" +
+                "            Table      = \"dbo.Car\",\n" +
+                "            NameField  = \"CarMake\",\n" +
+                "            ValueField = \"Id\"\n" +
+                "        }\n" +
+                "    };"));
+        }
+
+        private static readonly EnumerationEntry AEnum = new EnumerationEntry("AEnum", "dbo.A", "Name", "Id", null);
+        private static readonly EnumerationEntry Car   = new EnumerationEntry("CarEnum", "dbo.Car", "CarMake", "Id", null);
+
+        private static TemplateSettingsDocument Template(string statement)
+        {
+            return TemplateSettingsDocument.Parse("<#\n" + statement + "\n#>");
+        }
+
+        private static string Statement(TemplateSettingsDocument document)
+        {
+            return document.StatementText(document.Find("Enumerations")).Replace("\r\n", "\n");
+        }
+
+        /// <summary>A block laid out by hand the way its author indents, with no trailing comma after the last entry.</summary>
+        private static string Block(string settingsIndent, string braceIndent, string entryIndent, string step, params EnumerationEntry[] entries)
+        {
+            var lines = new System.Collections.Generic.List<string>
+            {
+                settingsIndent + "Settings.Enumerations = new List<EnumerationSettings>",
+                braceIndent + "{"
+            };
+
+            for (var i = 0; i < entries.Length; i++)
+            {
+                lines.Add(entryIndent + "new EnumerationSettings");
+                lines.Add(entryIndent + "{");
+                lines.Add(entryIndent + step + "Name       = \"" + entries[i].Name + "\",");
+                lines.Add(entryIndent + step + "Table      = \"" + entries[i].Table + "\",");
+                lines.Add(entryIndent + step + "NameField  = \"" + entries[i].NameField + "\",");
+                lines.Add(entryIndent + step + "ValueField = \"" + entries[i].ValueField + "\"");
+                lines.Add(entryIndent + (i < entries.Length - 1 ? "}," : "}"));
+            }
+
+            lines.Add(braceIndent + "};");
+            return string.Join("\n", lines);
+        }
+
         [Test]
         public void CannotAppendReason_ExplainsAnAbsentACommentedOutAndAForeignBlock()
         {
@@ -154,11 +332,43 @@ namespace Efrpg.Gui.Tests
 
             var entry = EnumerationBlock.Suggest(table);
 
-            Assert.That(entry.Name, Is.EqualTo("OrderStatus"));
+            Assert.That(entry.Name, Is.EqualTo("OrderStatusEnum"));
             Assert.That(entry.Table, Is.EqualTo("dbo.order_status"));
             Assert.That(entry.NameField, Is.EqualTo("code"));
             Assert.That(entry.ValueField, Is.EqualTo("id"));
             Assert.That(entry.IsValid, Is.True);
+        }
+
+        /// <summary>
+        ///     The table is usually generated as an entity too, under much the same name, and the generator does not
+        ///     check an enum against the classes beside it. The shipped AddEnum example appends Enum for the same reason.
+        /// </summary>
+        [Test]
+        public void Suggest_EnumName_HasEnumAppendedSoItCannotClashWithTheTablesEntity()
+        {
+            var table = new DatabaseObject("dbo", "Colour", DatabaseObjectKind.Table, new[]
+            {
+                new DatabaseColumn("Id", "int", true, 1),
+                new DatabaseColumn("Name", "varchar", false, 2)
+            });
+
+            var entry = EnumerationBlock.Suggest(table);
+
+            Assert.That(entry.Name, Is.EqualTo("ColourEnum"));
+        }
+
+        [Test]
+        public void Suggest_TableNameAlreadyEndingInEnum_IsNotSuffixedTwice()
+        {
+            var table = new DatabaseObject("dbo", "status_enum", DatabaseObjectKind.Table, new[]
+            {
+                new DatabaseColumn("id", "int", true, 1),
+                new DatabaseColumn("name", "nvarchar", false, 2)
+            });
+
+            var entry = EnumerationBlock.Suggest(table);
+
+            Assert.That(entry.Name, Is.EqualTo("StatusEnum"));
         }
 
         [Test]
@@ -171,6 +381,91 @@ namespace Efrpg.Gui.Tests
             Assert.That(candidates, Has.All.Property("Kind").EqualTo(DatabaseObjectKind.Table));
             Assert.That(candidates.Count, Is.EqualTo(schema.Count(DatabaseObjectKind.Table)));
             Assert.That(candidates.Select(t => t.FullName), Is.Ordered.Using((System.Collections.Generic.IComparer<string>) StringComparer.OrdinalIgnoreCase));
+        }
+
+        [Test]
+        public void Candidates_LookupsOnly_ListsOnlyTheLookupTablesInNameOrder()
+        {
+            var schema = Schema(
+                Table("dbo", "Status", ("Id", "int", true), ("Name", "nvarchar", false)),
+                Table("Alpha", "Harish3485", ("id", "int", true), ("harish_id", "int", false)),
+                Table("dbo", "Colour", ("Id", "int", true), ("Name", "varchar", false)));
+
+            var candidates = EnumerationBlock.Candidates(schema, showAllTables: false);
+
+            Assert.That(candidates.Select(t => t.FullName), Is.EqualTo(new[] { "dbo.Colour", "dbo.Status" }));
+        }
+
+        [Test]
+        public void Candidates_ShowAllTables_ListsEveryTableInNameOrder()
+        {
+            var schema = Schema(
+                Table("dbo", "Status", ("Id", "int", true), ("Name", "nvarchar", false)),
+                Table("Alpha", "Harish3485", ("id", "int", true), ("harish_id", "int", false)));
+
+            var candidates = EnumerationBlock.Candidates(schema, showAllTables: true);
+
+            Assert.That(candidates.Select(t => t.FullName), Is.EqualTo(new[] { "Alpha.Harish3485", "dbo.Status" }));
+        }
+
+        /// <summary>An empty dropdown would be a dead end, so a database with no lookup-shaped table offers them all.</summary>
+        [Test]
+        public void Candidates_LookupsOnlyButNoTableLooksLikeALookup_ListsEveryTable()
+        {
+            var schema = Schema(Table("Alpha", "Harish3485", ("id", "int", true), ("harish_id", "int", false)));
+
+            var candidates = EnumerationBlock.Candidates(schema, showAllTables: false);
+
+            Assert.That(candidates.Select(t => t.FullName), Is.EqualTo(new[] { "Alpha.Harish3485" }));
+        }
+
+        [Test]
+        public void HasLookupTables_OnlyTablesWithoutATextColumn_IsFalse()
+        {
+            var schema = Schema(Table("Alpha", "Harish3485", ("id", "int", true), ("harish_id", "int", false)));
+
+            Assert.That(EnumerationBlock.HasLookupTables(schema), Is.False);
+        }
+
+        /// <summary>
+        ///     A lookup table often carries description, sort order, active flag and audit columns as well as its key
+        ///     and name, and it must still be offered.
+        /// </summary>
+        [Test]
+        public void LooksLikeEnumTable_TenColumnsIncludingAnIntegerAndText_IsALookup()
+        {
+            var table = WideTable(10);
+
+            Assert.That(EnumerationBlock.LooksLikeEnumTable(table), Is.True);
+        }
+
+        [Test]
+        public void LooksLikeEnumTable_ElevenColumns_IsNotALookup()
+        {
+            var table = WideTable(11);
+
+            Assert.That(EnumerationBlock.LooksLikeEnumTable(table), Is.False);
+        }
+
+        private static DatabaseObject WideTable(int columnCount)
+        {
+            var columns = new[] { new DatabaseColumn("Id", "int", true, 1), new DatabaseColumn("Name", "nvarchar", false, 2) }
+                .Concat(Enumerable.Range(3, columnCount - 2).Select(n => new DatabaseColumn("Extra" + n, "datetime2", false, n)))
+                .ToArray();
+
+            return new DatabaseObject("dbo", "Status", DatabaseObjectKind.Table, columns);
+        }
+
+        private static string Table(string schema, string name, params (string Column, string Type, bool Key)[] columns)
+        {
+            return string.Concat(columns.Select((c, i) =>
+                $"<Row schemaName=\"{schema}\" tableName=\"{name}\" isView=\"false\" isSynonym=\"false\" ordinal=\"{i + 1}\" " +
+                $"columnName=\"{c.Column}\" typeName=\"{c.Type}\" primaryKey=\"{(c.Key ? "true" : "false")}\" />"));
+        }
+
+        private static DatabaseSchema Schema(params string[] tables)
+        {
+            return DatabaseSchema.Parse("<EfrpgResult schemaVersion=\"2\"><Tables>" + string.Concat(tables) + "</Tables></EfrpgResult>");
         }
 
         [Test]

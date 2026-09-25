@@ -14,8 +14,8 @@ namespace EntityFramework_Reverse_POCO_Generator
     ///     name and an optional group column.
     /// </summary>
     /// <remarks>
-    ///     With a schema, the tables are a dropdown with the lookup-shaped ones first and the columns follow the
-    ///     table, defaulted by <see cref="EnumerationBlock.Suggest"/>. Without one - the connection string could not
+    ///     With a schema, the tables are a dropdown of the lookup-shaped ones, or every table once Show all tables is
+    ///     ticked, and the columns follow the table, defaulted by <see cref="EnumerationBlock.Suggest"/>. Without one - the connection string could not
     ///     be resolved, or the read failed - every box is free text, because a user who knows the table name should
     ///     not be blocked by a database the dialog cannot reach.
     /// </remarks>
@@ -30,7 +30,9 @@ namespace EntityFramework_Reverse_POCO_Generator
         private readonly TextBox _name;
         private readonly TextBlock _validation;
         private readonly Button _ok;
-        private readonly System.Collections.Generic.List<string> _allTables;
+        private readonly CheckBox _showAll;
+        private readonly bool _hasLookups;
+        private System.Collections.Generic.List<string> _offeredTables = new System.Collections.Generic.List<string>();
         private bool _suggesting;
         private bool _filtering;
 
@@ -52,7 +54,7 @@ namespace EntityFramework_Reverse_POCO_Generator
             HasMaximizeButton     = false;
             HasMinimizeButton     = false;
 
-            _table      = Combo(EnumerationBlock.Candidates(schema).Select(t => t.FullName).ToList());
+            _table      = Combo(new string[0]);
             _nameField  = Combo(new string[0]);
             _valueField = Combo(new string[0]);
             _groupField = Combo(new string[0]);
@@ -60,7 +62,18 @@ namespace EntityFramework_Reverse_POCO_Generator
             _validation = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10), FontWeight = FontWeights.SemiBold };
             _ok         = new Button { Content = "Add", MinWidth = 90, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), IsDefault = true };
 
-            _allTables = EnumerationBlock.Candidates(schema).Select(t => t.FullName).ToList();
+            // Ticked, and greyed out, when no table looks like a lookup: every table is offered then anyway.
+            _hasLookups = EnumerationBlock.HasLookupTables(schema);
+            _showAll    = new CheckBox
+            {
+                Content    = "Show all tables",
+                Margin     = new Thickness(0, 6, 0, 0),
+                IsChecked  = !_hasLookups,
+                IsEnabled  = _hasLookups,
+                Visibility = schema == null ? Visibility.Collapsed : Visibility.Visible
+            };
+            _showAll.Checked   += (s, e) => OfferTables();
+            _showAll.Unchecked += (s, e) => OfferTables();
 
             // The combo's own prefix completion would fill in and highlight the rest of the first match, so that
             // the next keystroke replaced it; the contains-filter below is the completion here.
@@ -78,10 +91,41 @@ namespace EntityFramework_Reverse_POCO_Generator
 
             Content = Build();
 
-            if (_table.Items.Count > 0)
-                _table.SelectedIndex = 0;
+            OfferTables();
 
             Validate();
+        }
+
+        /// <summary>
+        ///     Fills the dropdown with the lookup-shaped tables, or every table when Show all tables is ticked. The
+        ///     table already chosen stays chosen, with its columns as the user left them; if it drops out of the list,
+        ///     the first table is selected and its columns suggested afresh.
+        /// </summary>
+        private void OfferTables()
+        {
+            var current = (_table.Text ?? string.Empty).Trim();
+            _offeredTables = EnumerationBlock.Candidates(_schema, _showAll.IsChecked == true).Select(t => t.FullName).ToList();
+            var keep = _offeredTables.FirstOrDefault(t => string.Equals(t, current, StringComparison.OrdinalIgnoreCase));
+
+            if (keep != null)
+            {
+                _filtering = true;
+                try
+                {
+                    _table.ItemsSource  = _offeredTables;
+                    _table.SelectedItem = keep;
+                }
+                finally
+                {
+                    _filtering = false;
+                }
+
+                return;
+            }
+
+            _table.ItemsSource = _offeredTables;
+            if (_offeredTables.Count > 0)
+                _table.SelectedIndex = 0;
         }
 
         private static ComboBox Combo(System.Collections.Generic.IReadOnlyList<string> items)
@@ -109,22 +153,22 @@ namespace EntityFramework_Reverse_POCO_Generator
                 return;
 
             var typed = (_table.Text ?? string.Empty).Trim();
-            var exact = _allTables.FirstOrDefault(t => string.Equals(t, typed, StringComparison.OrdinalIgnoreCase));
+            var exact = _offeredTables.FirstOrDefault(t => string.Equals(t, typed, StringComparison.OrdinalIgnoreCase));
 
             _filtering = true;
             try
             {
                 if (exact != null)
                 {
-                    if (!ReferenceEquals(_table.ItemsSource, _allTables))
-                        _table.ItemsSource = _allTables;
+                    if (!ReferenceEquals(_table.ItemsSource, _offeredTables))
+                        _table.ItemsSource = _offeredTables;
                     if (!Equals(_table.SelectedItem, exact))
                         _table.SelectedItem = exact;
                     _table.IsDropDownOpen = false;
                     return;
                 }
 
-                var matches = _allTables.Where(t => t.IndexOf(typed, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                var matches = _offeredTables.Where(t => t.IndexOf(typed, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
 
                 // Swapping the list clears the editable text when the old selection drops out of it, so the text
                 // and caret are put back afterwards.
@@ -211,17 +255,22 @@ namespace EntityFramework_Reverse_POCO_Generator
         {
             var body = new StackPanel { Margin = new Thickness(16) };
 
+            var lookupShape = $"an integer column, a text column and no more than {EnumerationBlock.MaxLookupColumns} columns";
+            const string appended = "The entry is appended to Settings.Enumerations when you save.";
             body.Children.Add(new TextBlock
             {
                 Text = _schema == null
-                    ? "The database could not be read, so type the table and column names. The entry is appended to Settings.Enumerations when you save."
-                    : "Tables that look like lookups - an integer key and a text column - are listed first. The entry is appended to Settings.Enumerations when you save.",
+                    ? "The database could not be read, so type the table and column names. " + appended
+                    : _hasLookups
+                        ? $"Only tables that look like lookups are listed: {lookupShape}. Tick Show all tables to pick any other. {appended}"
+                        : $"No table looks like a lookup ({lookupShape}), so every table is listed. {appended}",
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 14)
             });
 
             body.Children.Add(Label("Table (schema.table)"));
             body.Children.Add(_table);
+            body.Children.Add(_showAll);
             body.Children.Add(Gap());
             body.Children.Add(Label("Enum name"));
             body.Children.Add(_name);
