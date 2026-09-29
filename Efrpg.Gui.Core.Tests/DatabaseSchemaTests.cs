@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Xml.Linq;
 using Efrpg.Gui;
 using NUnit.Framework;
 
@@ -23,9 +24,26 @@ namespace Efrpg.Gui.Tests
             var schema = Real();
 
             Assert.That(schema.DefaultSchema, Is.EqualTo("dbo"));
-            Assert.That(schema.SchemaVersion, Is.EqualTo(EfrpgToolGate.RequiredSchemaVersion));
+            Assert.That(schema.SchemaVersion, Is.EqualTo(PayloadSchemaVersion()));
             Assert.That(schema.ToolVersion, Is.Not.Empty);
             Assert.That(schema.CanReadStoredProcedures, Is.True);
+        }
+
+        /// <summary>
+        ///     The gate's version is a floor, not the current one: the payload comes from the newest tool, which is
+        ///     free to be ahead of what the template needs, as schema 3 is ahead of the gate's 2.
+        /// </summary>
+        [Test]
+        public void Parse_PayloadSchemaVersion_MeetsTheToolGateFloor()
+        {
+            var schema = Real();
+
+            Assert.That(schema.SchemaVersion, Is.GreaterThanOrEqualTo(EfrpgToolGate.RequiredSchemaVersion));
+        }
+
+        private static int PayloadSchemaVersion()
+        {
+            return int.Parse(XDocument.Parse(RepositoryFiles.WireContractPayload()).Root!.Attribute("schemaVersion")!.Value); // the fixture always carries it
         }
 
         [Test]
