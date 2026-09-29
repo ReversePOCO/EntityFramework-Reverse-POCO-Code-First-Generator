@@ -27,12 +27,13 @@
         public readonly int Ordinal;
         public readonly string ColumnName;
         public readonly string Default;
+        public readonly bool? DefaultIsExpression; // Null when the tool predates schema version 3 and did not say
 
         public RawTable(string schemaName, string tableName, bool isView, bool isSynonym, int scale,
             string typeName, bool isNullable, int maxLength, int dateTimePrecision, int precision,
             bool isIdentity, bool isComputed, bool isRowGuid, byte generatedAlwaysType,
             bool isStoreGenerated, int primaryKeyOrdinal, bool primaryKey, bool isForeignKey, string synonymTriggerName,
-            int ordinal, string columnName, string @default)
+            int ordinal, string columnName, string @default, bool? defaultIsExpression = null)
         {
             // Table
             SchemaName = schemaName;
@@ -59,6 +60,7 @@
             Ordinal = ordinal;
             ColumnName = columnName;
             Default = @default;
+            DefaultIsExpression = defaultIsExpression;
         }
     }
 }

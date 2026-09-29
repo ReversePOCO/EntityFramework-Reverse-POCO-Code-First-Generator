@@ -89,6 +89,24 @@ CREATE TABLE DefaultsAndGenerated
 ) COMMENT = 'Column defaults, generated columns and ON UPDATE';
 
 -- ---------------------------------------------------------------------------------------------------------
+-- Defaults that are expressions rather than literals. MySQL is the awkward one: COLUMN_DEFAULT reports the
+-- string literal 'fallback' as the bare text fallback, exactly as it reports the expression (UUID()) as uuid(),
+-- so the text alone cannot tell them apart. Only EXTRA = DEFAULT_GENERATED can. LiteralLooksLikeFunction is the
+-- trap for any guess based on the text: it is the literal string 'uuid()' and must stay one. Expected: the
+-- expression columns get HasDefaultValueSql and no constructor default; the literals keep theirs.
+-- ---------------------------------------------------------------------------------------------------------
+CREATE TABLE ExpressionDefault
+(
+    Id                       INT AUTO_INCREMENT PRIMARY KEY,
+    ChangedBy                VARCHAR(288)    NOT NULL DEFAULT (CURRENT_USER()),
+    CreatedText              VARCHAR(30)     NULL     DEFAULT (DATE_FORMAT(NOW(), '%Y-%m-%d')),
+    DueAt                    DATETIME        NOT NULL DEFAULT (NOW() + INTERVAL 30 DAY),
+    LiteralLooksLikeFunction VARCHAR(20)     NOT NULL DEFAULT 'uuid()',
+    LiteralText              VARCHAR(20)     NOT NULL DEFAULT 'fallback',
+    NumberText               VARCHAR(10)     NOT NULL DEFAULT 0
+) COMMENT = 'Expression defaults, and literals that must not be mistaken for them';
+
+-- ---------------------------------------------------------------------------------------------------------
 -- Names chosen to break naive generators: spaces, reserved words in both SQL and C#, a leading digit,
 -- non-ASCII, and a column with the same name as its table.
 -- ---------------------------------------------------------------------------------------------------------

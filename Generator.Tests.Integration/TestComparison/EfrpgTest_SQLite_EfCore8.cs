@@ -33,6 +33,7 @@ namespace Efrpg.SQLite
     {
         DbSet<Efrpg> Efrpgs { get; set; } // Efrpg
         DbSet<EfrpgItem> EfrpgItems { get; set; } // EfrpgItems
+        DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         DbSet<ThisIsAView> ThisIsAViews { get; set; } // ThisIsAView
 
         int SaveChanges();
@@ -102,6 +103,7 @@ namespace Efrpg.SQLite
 
         public DbSet<Efrpg> Efrpgs { get; set; } // Efrpg
         public DbSet<EfrpgItem> EfrpgItems { get; set; } // EfrpgItems
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         public DbSet<ThisIsAView> ThisIsAViews { get; set; } // ThisIsAView
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -128,6 +130,7 @@ namespace Efrpg.SQLite
 
             modelBuilder.ApplyConfiguration(new EfrpgConfiguration());
             modelBuilder.ApplyConfiguration(new EfrpgItemConfiguration());
+            modelBuilder.ApplyConfiguration(new ExpressionDefaultConfiguration());
             modelBuilder.ApplyConfiguration(new ThisIsAViewConfiguration());
 
             modelBuilder.Entity<Efrpg>().ToTable(tb => tb.HasTrigger("efrpg_trigger"));
@@ -179,6 +182,7 @@ namespace Efrpg.SQLite
     {
         public DbSet<Efrpg> Efrpgs { get; set; } = null!; // Efrpg
         public DbSet<EfrpgItem> EfrpgItems { get; set; } = null!; // EfrpgItems
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } = null!; // ExpressionDefault
         public DbSet<ThisIsAView> ThisIsAViews { get; set; } = null!; // ThisIsAView
 
         public FakeMyDbContext()
@@ -188,6 +192,7 @@ namespace Efrpg.SQLite
 
             Efrpgs = new FakeDbSet<Efrpg>("Id");
             EfrpgItems = new FakeDbSet<EfrpgItem>("Id");
+            ExpressionDefaults = new FakeDbSet<ExpressionDefault>("Id");
             ThisIsAViews = new FakeDbSet<ThisIsAView>();
 
         }
@@ -1180,6 +1185,23 @@ namespace Efrpg.SQLite
         public virtual Efrpg ParentEfrpg { get; set; } // FK_EfrpgItems_ParentEfrpgId_Id
     }
 
+    // ExpressionDefault
+    public class ExpressionDefault
+    {
+        public long Id { get; set; } // Id (Primary key)
+        public string ChangedAt { get; set; } = null!; // ChangedAt
+        public string Token { get; set; } = null!; // Token
+        public DateTime? DueAt { get; set; } // DueAt
+        public string LiteralText { get; set; } // LiteralText
+        public string NumberText { get; set; } // NumberText
+
+        public ExpressionDefault()
+        {
+            LiteralText = "fallback";
+            NumberText = "0";
+        }
+    }
+
     // ThisIsAView
     public class ThisIsAView
     {
@@ -1252,11 +1274,28 @@ namespace Efrpg.SQLite
             builder.Property(x => x.EfrpgId).HasColumnName(@"EfrpgId").HasColumnType("integer").IsRequired();
             builder.Property(x => x.ParentEfrpgId).HasColumnName(@"ParentEfrpgId").HasColumnType("integer").IsRequired(false);
             builder.Property(x => x.Test).HasColumnName(@"Test").HasColumnType("int").IsRequired();
-            builder.Property(x => x.CreatedAt).HasColumnName(@"CreatedAt").HasColumnType("datetime").IsRequired(false);
+            builder.Property(x => x.CreatedAt).HasColumnName(@"CreatedAt").HasColumnType("datetime").IsRequired(false).HasDefaultValueSql(@"CURRENT_TIMESTAMP");
 
             // Foreign keys
             builder.HasOne(a => a.Efrpg_EfrpgId).WithMany(b => b.EfrpgItems_EfrpgId).HasForeignKey(c => c.EfrpgId).HasConstraintName("FK_EfrpgItems_EfrpgId_Id");
             builder.HasOne(a => a.ParentEfrpg).WithMany(b => b.EfrpgItems_ParentEfrpgId).HasForeignKey(c => c.ParentEfrpgId).HasConstraintName("FK_EfrpgItems_ParentEfrpgId_Id");
+        }
+    }
+
+    // ExpressionDefault
+    public class ExpressionDefaultConfiguration : IEntityTypeConfiguration<ExpressionDefault>
+    {
+        public void Configure(EntityTypeBuilder<ExpressionDefault> builder)
+        {
+            builder.ToTable("ExpressionDefault", "main");
+            builder.HasKey(x => x.Id);
+
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("integer").IsRequired().ValueGeneratedOnAdd();
+            builder.Property(x => x.ChangedAt).HasColumnName(@"ChangedAt").HasColumnType("text").IsRequired().IsUnicode(false).HasDefaultValueSql(@"CURRENT_TIMESTAMP");
+            builder.Property(x => x.Token).HasColumnName(@"Token").HasColumnType("text").IsRequired().IsUnicode(false).HasDefaultValueSql(@"lower(hex(randomblob(16)))");
+            builder.Property(x => x.DueAt).HasColumnName(@"DueAt").HasColumnType("datetime").IsRequired(false).HasDefaultValueSql(@"datetime('now', '+30 days')");
+            builder.Property(x => x.LiteralText).HasColumnName(@"LiteralText").HasColumnType("text").IsRequired().IsUnicode(false);
+            builder.Property(x => x.NumberText).HasColumnName(@"NumberText").HasColumnType("text").IsRequired().IsUnicode(false);
         }
     }
 

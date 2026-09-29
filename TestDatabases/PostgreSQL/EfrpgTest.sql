@@ -177,6 +177,26 @@ CREATE TABLE public.defaults_and_generated
 
 COMMENT ON TABLE public.defaults_and_generated IS 'Column defaults and a stored generated column';
 
+-- ---------------------------------------------------------------------------------------------------------
+-- Defaults that are expressions rather than literals: CURRENT_USER (no brackets), function calls, arithmetic,
+-- and a non-empty array literal, which has no one-line C# equivalent. Expected: the expression columns get
+-- HasDefaultValueSql and no constructor default; the literals keep theirs. defaults_and_generated.tags above
+-- ('{}' on text[]) is the array control: it must become an empty array, not the string "{}".
+-- ---------------------------------------------------------------------------------------------------------
+CREATE TABLE public.expression_default
+(
+    id             serial PRIMARY KEY,
+    changed_by     varchar(128)                NOT NULL DEFAULT CURRENT_USER,
+    app_name       text                                 DEFAULT current_setting('application_name'),
+    created_text   varchar(30)                          DEFAULT to_char(now(), 'YYYY-MM-DD'),
+    due_at         timestamp with time zone    NOT NULL DEFAULT (now() + interval '30 days'),
+    numbers        integer[]                   NOT NULL DEFAULT '{1,2}',
+    literal_text   varchar(20)                 NOT NULL DEFAULT 'fallback',
+    number_text    varchar(10)                 NOT NULL DEFAULT 0
+);
+
+COMMENT ON TABLE public.expression_default IS 'Expression defaults, and literals that must not be mistaken for them';
+
 
 -- ---------------------------------------------------------------------------------------------------------
 -- Keys. Composite primary key, composite foreign key (the pairing of which is what the pg_constraint

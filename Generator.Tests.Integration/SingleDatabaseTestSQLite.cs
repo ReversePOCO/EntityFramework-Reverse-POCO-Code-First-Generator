@@ -86,6 +86,20 @@ CREATE TABLE EfrpgItems
     FOREIGN KEY (ParentEfrpgId) REFERENCES [Efrpg] (Id) ON DELETE CASCADE ON UPDATE NO ACTION
 );
 
+-- Defaults that are expressions rather than literals. dflt_value is the text as written, so CURRENT_TIMESTAMP
+-- and the function calls arrive unquoted while the literals keep their quotes. SQLite has no column types, so a
+-- TEXT column defaulting to CURRENT_TIMESTAMP is a string property: it must get HasDefaultValueSql, not the
+-- string ""CURRENT_TIMESTAMP"". EfrpgItems.CreatedAt above is the DATETIME version of the same default.
+CREATE TABLE ExpressionDefault
+(
+    Id          INTEGER PRIMARY KEY,
+    ChangedAt   TEXT     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Token       TEXT     NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+    DueAt       DATETIME DEFAULT (datetime('now', '+30 days')),
+    LiteralText TEXT     NOT NULL DEFAULT 'fallback',
+    NumberText  TEXT     NOT NULL DEFAULT 0
+);
+
 CREATE INDEX [IX_Efrpg] ON [Efrpg] ([TEXT3]);
 CREATE INDEX [IX_Efrpg_Composite] ON [Efrpg] (int1, int2);
 

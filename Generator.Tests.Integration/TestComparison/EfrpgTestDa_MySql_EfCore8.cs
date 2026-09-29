@@ -41,6 +41,7 @@ namespace Efrpg.MySql
         DbSet<CurrenCy> CurrenCies { get; set; } // CURRENCIES
         DbSet<DefaultsAndGenerated> DefaultsAndGenerateds { get; set; } // DefaultsAndGenerated
         DbSet<Employee> Employees { get; set; } // Employee
+        DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         DbSet<Flight> Flights { get; set; } // Flight
         DbSet<IndexTest> IndexTests { get; set; } // IndexTest
         DbSet<OrderStatus> OrderStatus { get; set; } // OrderStatus
@@ -146,6 +147,7 @@ namespace Efrpg.MySql
         public DbSet<CurrenCy> CurrenCies { get; set; } // CURRENCIES
         public DbSet<DefaultsAndGenerated> DefaultsAndGenerateds { get; set; } // DefaultsAndGenerated
         public DbSet<Employee> Employees { get; set; } // Employee
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         public DbSet<Flight> Flights { get; set; } // Flight
         public DbSet<IndexTest> IndexTests { get; set; } // IndexTest
         public DbSet<OrderStatus> OrderStatus { get; set; } // OrderStatus
@@ -190,6 +192,7 @@ namespace Efrpg.MySql
             modelBuilder.ApplyConfiguration(new CurrenCyConfiguration());
             modelBuilder.ApplyConfiguration(new DefaultsAndGeneratedConfiguration());
             modelBuilder.ApplyConfiguration(new EmployeeConfiguration());
+            modelBuilder.ApplyConfiguration(new ExpressionDefaultConfiguration());
             modelBuilder.ApplyConfiguration(new FlightConfiguration());
             modelBuilder.ApplyConfiguration(new IndexTestConfiguration());
             modelBuilder.ApplyConfiguration(new OrderStatusConfiguration());
@@ -401,6 +404,7 @@ namespace Efrpg.MySql
         public DbSet<CurrenCy> CurrenCies { get; set; } = null!; // CURRENCIES
         public DbSet<DefaultsAndGenerated> DefaultsAndGenerateds { get; set; } = null!; // DefaultsAndGenerated
         public DbSet<Employee> Employees { get; set; } = null!; // Employee
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } = null!; // ExpressionDefault
         public DbSet<Flight> Flights { get; set; } = null!; // Flight
         public DbSet<IndexTest> IndexTests { get; set; } = null!; // IndexTest
         public DbSet<OrderStatus> OrderStatus { get; set; } = null!; // OrderStatus
@@ -428,6 +432,7 @@ namespace Efrpg.MySql
             CurrenCies = new FakeDbSet<CurrenCy>("Id");
             DefaultsAndGenerateds = new FakeDbSet<DefaultsAndGenerated>("Id");
             Employees = new FakeDbSet<Employee>("Id");
+            ExpressionDefaults = new FakeDbSet<ExpressionDefault>("Id");
             Flights = new FakeDbSet<Flight>("Id");
             IndexTests = new FakeDbSet<IndexTest>("Id");
             OrderStatus = new FakeDbSet<OrderStatus>("Id");
@@ -1816,7 +1821,7 @@ namespace Efrpg.MySql
         [Required(AllowEmptyStrings = true)]
         [Display(Name = "External ref")]
         [Unicode(false)]
-        public string ExternalRef { get; set; } // ExternalRef (length: 36)
+        public string ExternalRef { get; set; } = null!; // ExternalRef (length: 36)
 
         [Required]
         [Display(Name = "Created at")]
@@ -1843,7 +1848,6 @@ namespace Efrpg.MySql
             UnitPrice = 9.9900m;
             Description = "Hello world";
             IsActive = true;
-            ExternalRef = "uuid()";
         }
     }
 
@@ -1887,6 +1891,65 @@ namespace Efrpg.MySql
         public Employee()
         {
             Employees = new List<Employee>();
+        }
+    }
+
+    // ExpressionDefault
+    /// <summary>
+    /// Expression defaults, and literals that must not be mistaken for them
+    /// </summary>
+    [Table("ExpressionDefault", Schema = "EfrpgTest")]
+    [Comment(@"Expression defaults, and literals that must not be mistaken for them")]
+    public class ExpressionDefault
+    {
+        [Key, Column(Order = 1)]
+        [Required]
+        [Display(Name = "Id")]
+        public int Id { get; set; } // Id (Primary key)
+
+        [MaxLength(288)]
+        [StringLength(288)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Changed by")]
+        [Unicode(false)]
+        public string ChangedBy { get; set; } = null!; // ChangedBy (length: 288)
+
+        [MaxLength(30)]
+        [StringLength(30)]
+        [Display(Name = "Created text")]
+        [Unicode(false)]
+        public string CreatedText { get; set; } // CreatedText (length: 30)
+
+        [Required]
+        [Display(Name = "Due at")]
+        public DateTime DueAt { get; set; } // DueAt
+
+        [MaxLength(20)]
+        [StringLength(20)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Literal looks like function")]
+        [Unicode(false)]
+        public string LiteralLooksLikeFunction { get; set; } // LiteralLooksLikeFunction (length: 20)
+
+        [MaxLength(20)]
+        [StringLength(20)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Literal text")]
+        [Unicode(false)]
+        public string LiteralText { get; set; } // LiteralText (length: 20)
+
+        [MaxLength(10)]
+        [StringLength(10)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Number text")]
+        [Unicode(false)]
+        public string NumberText { get; set; } // NumberText (length: 10)
+
+        public ExpressionDefault()
+        {
+            LiteralLooksLikeFunction = "uuid()";
+            LiteralText = "fallback";
+            NumberText = "0";
         }
     }
 
@@ -2505,9 +2568,9 @@ namespace Efrpg.MySql
             builder.Property(x => x.UnitPrice).HasColumnName(@"UnitPrice").HasColumnType("decimal(18,4)");
             builder.Property(x => x.Description).HasColumnName(@"Description").HasColumnType("varchar(50)");
             builder.Property(x => x.IsActive).HasColumnName(@"IsActive").HasColumnType("tinyint(1)");
-            builder.Property(x => x.ExternalRef).HasColumnName(@"ExternalRef").HasColumnType("char(36)").IsFixedLength();
-            builder.Property(x => x.CreatedAt).HasColumnName(@"CreatedAt").HasColumnType("timestamp");
-            builder.Property(x => x.ModifiedAt).HasColumnName(@"ModifiedAt").HasColumnType("timestamp").IsFixedLength();
+            builder.Property(x => x.ExternalRef).HasColumnName(@"ExternalRef").HasColumnType("char(36)").IsFixedLength().HasDefaultValueSql(@"uuid()");
+            builder.Property(x => x.CreatedAt).HasColumnName(@"CreatedAt").HasColumnType("timestamp").HasDefaultValueSql(@"CURRENT_TIMESTAMP");
+            builder.Property(x => x.ModifiedAt).HasColumnName(@"ModifiedAt").HasColumnType("timestamp").IsFixedLength().HasDefaultValueSql(@"CURRENT_TIMESTAMP");
             builder.Property(x => x.LineTotal).HasColumnName(@"LineTotal").HasColumnType("decimal(20,4)").IsRequired(false);
             builder.Property(x => x.HasQuantity).HasColumnName(@"HasQuantity").HasColumnType("tinyint(1)").IsRequired(false);
         }
@@ -2528,6 +2591,23 @@ namespace Efrpg.MySql
             builder.HasOne(a => a.Employee_ReportsTo).WithMany(b => b.Employees).HasForeignKey(c => c.ReportsTo).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_Employee_ReportsTo");
 
             builder.HasIndex(x => x.ReportsTo).HasDatabaseName("FK_Employee_ReportsTo");
+        }
+    }
+
+    // ExpressionDefault
+    public class ExpressionDefaultConfiguration : IEntityTypeConfiguration<ExpressionDefault>
+    {
+        public void Configure(EntityTypeBuilder<ExpressionDefault> builder)
+        {
+            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").ValueGeneratedOnAdd();
+            builder.Property(x => x.ChangedBy).HasColumnName(@"ChangedBy").HasColumnType("varchar(288)").HasDefaultValueSql(@"current_user()");
+            builder.Property(x => x.CreatedText).HasColumnName(@"CreatedText").HasColumnType("varchar(30)").IsRequired(false).HasDefaultValueSql(@"date_format(now(),_latin1\'%Y-%m-%d\')");
+            builder.Property(x => x.DueAt).HasColumnName(@"DueAt").HasColumnType("datetime").HasDefaultValueSql(@"now() + interval 30 day");
+            builder.Property(x => x.LiteralLooksLikeFunction).HasColumnName(@"LiteralLooksLikeFunction").HasColumnType("varchar(20)");
+            builder.Property(x => x.LiteralText).HasColumnName(@"LiteralText").HasColumnType("varchar(20)");
+            builder.Property(x => x.NumberText).HasColumnName(@"NumberText").HasColumnType("varchar(10)");
         }
     }
 

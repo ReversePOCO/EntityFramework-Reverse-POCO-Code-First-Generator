@@ -101,7 +101,8 @@ namespace Efrpg.Readers
                 Bool(e, "isStoreGenerated"), Int(e, "primaryKeyOrdinal"),
                 Bool(e, "primaryKey"), Bool(e, "isForeignKey"),
                 Str(e, "synonymTriggerName"),
-                Int(e, "ordinal"), Str(e, "columnName"), Str(e, "default")
+                Int(e, "ordinal"), Str(e, "columnName"), Str(e, "default"),
+                BoolOpt(e, "defaultIsExpression")
             );
         }
 

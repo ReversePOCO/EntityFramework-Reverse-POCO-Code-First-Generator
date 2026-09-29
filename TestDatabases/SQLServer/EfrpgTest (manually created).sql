@@ -2584,3 +2584,26 @@ BEGIN
     ORDER BY d.TypeId;
 END
 GO
+
+-- Column defaults that are SQL expressions rather than literals. The generator used to turn string ones into C#
+-- string literals in the entity constructor (ChangedBy = "suser_sname()";), so every row EF inserted stored the
+-- function's name instead of letting SQL Server run it, and mapped any datetime default merely containing
+-- sysutcdatetime() to DateTime.UtcNow, silently dropping the DATEADD. Expected: no constructor default for the
+-- expression columns, and .HasDefaultValueSql(...) in their configuration so EF Core leaves them out of the INSERT.
+-- The controls must not change: CreatedAt keeps DateTime.UtcNow, Token keeps Guid.NewGuid().ToString(), and
+-- LiteralText and NumberText stay "fallback" and "0".
+CREATE TABLE dbo.ExpressionDefault
+(
+    Id          INT           IDENTITY(1, 1) NOT NULL,
+    ChangedBy   NVARCHAR(128) NOT NULL CONSTRAINT [DF_ExpressionDefault_ChangedBy] DEFAULT (SUSER_SNAME()),
+    AppName     NVARCHAR(128) NULL CONSTRAINT [DF_ExpressionDefault_AppName] DEFAULT (APP_NAME()),
+    DbUser      NVARCHAR(128) NULL CONSTRAINT [DF_ExpressionDefault_DbUser] DEFAULT (CURRENT_USER), -- stored as user_name()
+    CreatedText VARCHAR(30)   NULL CONSTRAINT [DF_ExpressionDefault_CreatedText] DEFAULT (CONVERT(VARCHAR(30), GETDATE(), 126)),
+    DueAt       DATETIME2     NOT NULL CONSTRAINT [DF_ExpressionDefault_DueAt] DEFAULT (DATEADD(DAY, 30, SYSUTCDATETIME())),
+    CreatedAt   DATETIME2     NOT NULL CONSTRAINT [DF_ExpressionDefault_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+    Token       NVARCHAR(36)  NOT NULL CONSTRAINT [DF_ExpressionDefault_Token] DEFAULT (NEWID()),
+    LiteralText NVARCHAR(20)  NOT NULL CONSTRAINT [DF_ExpressionDefault_LiteralText] DEFAULT (N'fallback'),
+    NumberText  VARCHAR(10)   NOT NULL CONSTRAINT [DF_ExpressionDefault_NumberText] DEFAULT (0),
+    CONSTRAINT [PK_ExpressionDefault] PRIMARY KEY CLUSTERED (Id)
+);
+GO

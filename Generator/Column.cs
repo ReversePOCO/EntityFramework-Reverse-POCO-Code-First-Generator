@@ -23,6 +23,7 @@ namespace Efrpg
         public string Default;
         public string HasDefaultValueSql; // Set for sequence defaults (NEXT VALUE FOR); always emitted in config
         public string DefaultSql;         // Raw SQL default (brackets removed) for regular defaults; emitted when Settings.GenerateHasDefaultValueSql = true
+        public bool? DefaultIsExpression; // From the efrpg tool: true when the catalogue marks the default as an expression (MySQL). Null from a tool too old to say
         public int MaxLength;
         public int Precision;
         public int Ordinal;
@@ -146,10 +147,14 @@ namespace Efrpg
                 return;
             }
 
-            // Remove outer brackets
-            while (Default.First() == '(' && Default.Last() == ')' && Default.Length > 2)
+            // Oracle's DATA_DEFAULT keeps whatever whitespace followed the default in the DDL
+            Default = Default.Trim();
+
+            // Remove outer brackets, but only a pair that encloses the whole default: SQL Server stores
+            // DEFAULT (1+2) as ((1)+(2)), and stripping its first and last characters again would leave 1)+(2
+            while (Default.Length > 2 && IsEnclosedInOneBracketPair(Default))
             {
-                Default = Default.Substring(1, Default.Length - 2);
+                Default = Default.Substring(1, Default.Length - 2).Trim();
             }
 
             // Check for sequence
@@ -180,17 +185,55 @@ namespace Efrpg
             // its cast here: it is valid SQL, and HasDefaultValueSql emits this verbatim.
             DefaultSql = isPostgres ? rawDefault.Trim() : Default.Trim();
 
-            if (Default.First() == '\'' && Default.Last() == '\'' && Default.Length >= 2)
-                Default = string.Format("\"{0}\"", Default.Substring(1, Default.Length - 2));
-
             lower = Default.ToLower();
             var lowerPropertyType = PropertyType.ToLower();
+
+            // Ignore defaults we cannot interpret (we would need SQL to C# compiler)
+            if (lower.StartsWith("create default"))
+            {
+                DefaultSql = string.Empty;
+                Default = string.Empty;
+                return;
+            }
+
+            // A default that is SQL rather than a literal - SUSER_SNAME(), CURRENT_USER, now(), SYSDATE + 30 - has no
+            // C# form. As a string it would store the function's name, and dropped it would store the CLR default, so
+            // it goes to HasDefaultValueSql: EF Core then leaves the column out of the INSERT and the database runs it.
+            if (IsExpressionDefault(Default) && !HasCSharpEquivalent(lower, lowerPropertyType))
+            {
+                HasDefaultValueSql = DefaultSql;
+                Default = string.Empty;
+                return;
+            }
+
+            // PostgreSQL arrays. EF Core will not save a null into a NOT NULL array even with HasDefaultValueSql, so a
+            // literal that can be read is written in C#, and only what cannot be read safely is left to the database.
+            if (lowerPropertyType.EndsWith("[]") && lowerPropertyType != "byte[]")
+            {
+                var array = PostgresArrayLiteralToCSharp(Default, PropertyType.Substring(0, PropertyType.Length - 2));
+                if (array != null)
+                {
+                    Default = array;
+                }
+                else
+                {
+                    HasDefaultValueSql = DefaultSql;
+                    Default = string.Empty;
+                }
+                return;
+            }
+
+            var quotedLiteral = QuotedLiteral.Match(Default);
+            if (quotedLiteral.Success)
+                Default = string.Format("\"{0}\"", quotedLiteral.Groups["value"].Value.Replace("''", "'"));
+
+            lower = Default.ToLower();
 
             // Cleanup default
             switch (lowerPropertyType)
             {
                 case "bool":
-                    Default = (Default == "0" || lower == "\"false\"" || lower == "false") ? "false" : "true";
+                    Default = (Default == "0" || lower == "\"0\"" || lower == "\"false\"" || lower == "false") ? "false" : "true";
                     break;
 
                 case "string":
@@ -232,14 +275,6 @@ namespace Efrpg
                     DefaultSql = string.Empty;
                     Default = string.Empty;
                     break;
-            }
-
-            // Ignore defaults we cannot interpret (we would need SQL to C# compiler)
-            if (lower.StartsWith("create default"))
-            {
-                DefaultSql = string.Empty;
-                Default = string.Empty;
-                return;
             }
 
             if (string.IsNullOrWhiteSpace(Default))
@@ -385,6 +420,220 @@ namespace Efrpg
 
                 value = stripped;
             }
+        }
+
+        // A quoted SQL string literal, optionally prefixed: N'x' (SQL Server), E'x' (PostgreSQL), B'1' and X'00'
+        // (bit and hex). A doubled quote is an escaped one, so 'it''s' is a single literal and 'a' + 'b' is not.
+        private static readonly Regex QuotedLiteral =
+            new Regex(@"^[NnEeBbXx]?'(?<value>(?:[^']|'')*)'$", RegexOptions.Singleline);
+
+        private static readonly Regex NumericLiteral = new Regex(@"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$");
+        private static readonly Regex HexLiteral     = new Regex(@"^0[xX][0-9A-Fa-f]*$");
+
+        // What a MySQL default looks like when it is an expression: a function call or a date keyword. Only used
+        // with an efrpg older than 1.2.0, which does not pass on the catalogue's own DEFAULT_GENERATED flag.
+        private static readonly Regex MySqlExpressionText =
+            new Regex(@"^(?:[A-Za-z_][\w$.]*\s*\(.*\)|current_(?:timestamp|date|time)|localtime(?:stamp)?)$",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+        /// <summary>
+        ///     True when the default is SQL to be run by the database rather than a literal value.
+        /// </summary>
+        /// <remarks>
+        ///     Decided by what a literal looks like, not by a list of functions, which could never be complete. Every
+        ///     database but MySQL quotes its string literals, so anything that is not a quoted string, a number, hex,
+        ///     NULL, TRUE or FALSE is SQL. MySQL reports 'fallback' as the bare text fallback, which is why efrpg sends
+        ///     the catalogue's answer for MySQL and this falls back to the text only for an older tool.
+        /// </remarks>
+        private bool IsExpressionDefault(string value)
+        {
+            if (Settings.DatabaseType == DatabaseType.MySql)
+                return DefaultIsExpression ?? MySqlExpressionText.IsMatch(value);
+
+            return DefaultIsExpression == true || !IsSqlLiteral(value);
+        }
+
+        private static bool IsSqlLiteral(string value)
+        {
+            if (QuotedLiteral.IsMatch(value) || NumericLiteral.IsMatch(value) || HexLiteral.IsMatch(value))
+                return true;
+
+            switch (value.ToLowerInvariant())
+            {
+                case "null":
+                case "true":
+                case "false":
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        ///     SQL functions with a C# equivalent, which is generated in the entity's constructor instead. For dates the
+        ///     function has to be the whole default: DATEADD(DAY, 30, SYSUTCDATETIME()) is not SYSUTCDATETIME().
+        /// </summary>
+        /// <remarks>
+        ///     EF6 is the exception for dates. It has no HasDefaultValueSql, so it cannot leave a date to the database,
+        ///     and the approximate current time it has always generated for any default containing one beats the
+        ///     DateTime.MinValue it would otherwise insert.
+        /// </remarks>
+        private static bool HasCSharpEquivalent(string lowerSql, string lowerPropertyType)
+        {
+            switch (lowerPropertyType)
+            {
+                case "datetime":
+                case "datetime2":
+                case "system.datetime":
+                    if (Settings.IsEf6())
+                        return lowerSql.Contains("getdate()") || lowerSql.Contains("sysdatetime") || lowerSql.Contains("getutcdate()") || lowerSql.Contains("sysutcdatetime");
+                    return lowerSql == "getdate()" || lowerSql == "sysdatetime()" || lowerSql == "getutcdate()" || lowerSql == "sysutcdatetime()";
+
+                case "datetimeoffset":
+                case "system.datetimeoffset":
+                    if (Settings.IsEf6())
+                        return lowerSql.Contains("getdate()") || lowerSql.Contains("sysdatetimeoffset") || lowerSql.Contains("getutcdate()") || lowerSql.Contains("sysutcdatetime");
+                    return lowerSql == "getdate()" || lowerSql == "sysdatetimeoffset()" || lowerSql == "getutcdate()" || lowerSql == "sysutcdatetime()";
+
+                case "string":
+                    return lowerSql.Contains("newid()") || lowerSql.Contains("newsequentialid()") || lowerSql.StartsWith("space(");
+
+                case "guid":
+                case "system.guid":
+                    return lowerSql.Contains("newid()") || lowerSql.Contains("newsequentialid()") ||
+                           lowerSql.Contains("gen_random_uuid()") || lowerSql.Contains("uuid_generate_v4()");
+
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        ///     C# for a one-dimensional PostgreSQL array literal such as '{1,2}' or '{a,"b c"}'. Null when it has NULL
+        ///     elements, nesting or escapes, or an element type with no simple C# literal: those are left to the database.
+        /// </summary>
+        private static string PostgresArrayLiteralToCSharp(string sqlLiteral, string elementType)
+        {
+            var quoted = QuotedLiteral.Match(sqlLiteral);
+            if (!quoted.Success)
+                return null;
+
+            var text = quoted.Groups["value"].Value.Replace("''", "'").Trim();
+            if (text.Length < 2 || text[0] != '{' || text[text.Length - 1] != '}')
+                return null;
+
+            var body = text.Substring(1, text.Length - 2);
+            if (body.Trim().Length == 0)
+                return string.Format("Array.Empty<{0}>()", elementType);
+
+            if (body.IndexOfAny(new[] { '{', '}', '\\' }) >= 0)
+                return null;
+
+            var elements = new List<string>();
+            var n = 0;
+            while (n <= body.Length)
+            {
+                while (n < body.Length && char.IsWhiteSpace(body[n]))
+                    ++n;
+
+                string element;
+                var isQuoted = n < body.Length && body[n] == '"';
+                if (isQuoted)
+                {
+                    var close = body.IndexOf('"', n + 1);
+                    if (close < 0)
+                        return null;
+
+                    element = body.Substring(n + 1, close - n - 1);
+                    n = close + 1;
+                    while (n < body.Length && char.IsWhiteSpace(body[n]))
+                        ++n;
+                }
+                else
+                {
+                    var comma = body.IndexOf(',', n);
+                    var end = comma < 0 ? body.Length : comma;
+                    element = body.Substring(n, end - n).Trim();
+                    if (element.Length == 0 || element.Equals("NULL", StringComparison.OrdinalIgnoreCase))
+                        return null;
+                    n = end;
+                }
+
+                var csharp = ArrayElementToCSharp(element, elementType.TrimEnd('?'), isQuoted);
+                if (csharp == null)
+                    return null;
+                elements.Add(csharp);
+
+                if (n >= body.Length)
+                    break;
+                if (body[n] != ',')
+                    return null;
+                ++n;
+            }
+
+            return string.Format("new {0}[] {{ {1} }}", elementType, string.Join(", ", elements));
+        }
+
+        private static string ArrayElementToCSharp(string element, string elementType, bool isQuoted)
+        {
+            switch (elementType.ToLowerInvariant())
+            {
+                case "string":
+                    return "\"" + element.Replace("\"", "\\\"") + "\"";
+
+                case "int":
+                case "long":
+                case "short":
+                    return Regex.IsMatch(element, @"^[+-]?\d+$") ? element : null;
+
+                case "decimal":
+                    return NumericLiteral.IsMatch(element) ? element + "m" : null;
+
+                case "double":
+                    return NumericLiteral.IsMatch(element) ? element : null;
+
+                case "float":
+                    return NumericLiteral.IsMatch(element) ? element + "f" : null;
+
+                case "bool":
+                    switch (element.ToLowerInvariant())
+                    {
+                        case "t": case "true": case "y": case "yes": case "on": case "1":
+                            return "true";
+                        case "f": case "false": case "n": case "no": case "off": case "0":
+                            return "false";
+                        default:
+                            return null;
+                    }
+
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        ///     True when the first character is a bracket closed by the last one, ignoring brackets inside quotes.
+        /// </summary>
+        private static bool IsEnclosedInOneBracketPair(string value)
+        {
+            if (value[0] != '(' || value[value.Length - 1] != ')')
+                return false;
+
+            var depth = 0;
+            var inQuotes = false;
+            for (var n = 0; n < value.Length; ++n)
+            {
+                var c = value[n];
+                if (c == '\'')
+                    inQuotes = !inQuotes;
+                else if (!inQuotes && c == '(')
+                    ++depth;
+                else if (!inQuotes && c == ')' && --depth == 0 && n < value.Length - 1)
+                    return false;
+            }
+
+            return depth == 0;
         }
 
         public static string ToDisplayName(string str)

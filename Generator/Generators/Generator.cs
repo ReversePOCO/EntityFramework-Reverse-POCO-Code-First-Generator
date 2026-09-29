@@ -234,6 +234,7 @@ namespace Efrpg.Generators
                 Ordinal = rt.Ordinal,
                 DbName = rt.ColumnName,
                 Default = rt.Default,
+                DefaultIsExpression = rt.DefaultIsExpression,
                 ParentTable = table,
                 ExistsInBaseClass = false
             };

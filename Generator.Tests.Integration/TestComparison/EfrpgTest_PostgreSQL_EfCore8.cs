@@ -50,6 +50,7 @@ namespace Efrpg.PostgreSQL
         DbSet<DefaultsAndGenerated> DefaultsAndGenerateds { get; set; } // defaults_and_generated
         DbSet<DuplicatedName> DuplicatedNames { get; set; } // duplicated_name
         DbSet<Employee> Employees { get; set; } // employee
+        DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // expression_default
         DbSet<Flight> Flights { get; set; } // flight
         DbSet<HarishChild> HarishChilds { get; set; } // harish_child
         DbSet<HarishParent> HarishParents { get; set; } // harish_parent
@@ -177,6 +178,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<DefaultsAndGenerated> DefaultsAndGenerateds { get; set; } // defaults_and_generated
         public DbSet<DuplicatedName> DuplicatedNames { get; set; } // duplicated_name
         public DbSet<Employee> Employees { get; set; } // employee
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // expression_default
         public DbSet<Flight> Flights { get; set; } // flight
         public DbSet<HarishChild> HarishChilds { get; set; } // harish_child
         public DbSet<HarishParent> HarishParents { get; set; } // harish_parent
@@ -244,6 +246,7 @@ namespace Efrpg.PostgreSQL
             modelBuilder.ApplyConfiguration(new DefaultsAndGeneratedConfiguration());
             modelBuilder.ApplyConfiguration(new DuplicatedNameConfiguration());
             modelBuilder.ApplyConfiguration(new EmployeeConfiguration());
+            modelBuilder.ApplyConfiguration(new ExpressionDefaultConfiguration());
             modelBuilder.ApplyConfiguration(new FlightConfiguration());
             modelBuilder.ApplyConfiguration(new HarishChildConfiguration());
             modelBuilder.ApplyConfiguration(new HarishParentConfiguration());
@@ -453,6 +456,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<DefaultsAndGenerated> DefaultsAndGenerateds { get; set; } = null!; // defaults_and_generated
         public DbSet<DuplicatedName> DuplicatedNames { get; set; } = null!; // duplicated_name
         public DbSet<Employee> Employees { get; set; } = null!; // employee
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } = null!; // expression_default
         public DbSet<Flight> Flights { get; set; } = null!; // flight
         public DbSet<HarishChild> HarishChilds { get; set; } = null!; // harish_child
         public DbSet<HarishParent> HarishParents { get; set; } = null!; // harish_parent
@@ -501,6 +505,7 @@ namespace Efrpg.PostgreSQL
             DefaultsAndGenerateds = new FakeDbSet<DefaultsAndGenerated>("Id");
             DuplicatedNames = new FakeDbSet<DuplicatedName>("Id");
             Employees = new FakeDbSet<Employee>("EmployeeId");
+            ExpressionDefaults = new FakeDbSet<ExpressionDefault>("Id");
             Flights = new FakeDbSet<Flight>("FlightId");
             HarishChilds = new FakeDbSet<HarishChild>("Id");
             HarishParents = new FakeDbSet<HarishParent>("Id");
@@ -1798,7 +1803,7 @@ namespace Efrpg.PostgreSQL
             IsActive = true;
             ExternalRef = Guid.NewGuid();
             TheWordNull = "NULL";
-            Tags = "{}";
+            Tags = Array.Empty<string>();
         }
     }
 
@@ -1838,6 +1843,26 @@ namespace Efrpg.PostgreSQL
         public Employee()
         {
             Employees = new List<Employee>();
+        }
+    }
+
+    // expression_default
+    public class ExpressionDefault
+    {
+        public int Id { get; set; } // id (Primary key)
+        public string ChangedBy { get; set; } = null!; // changed_by (length: 128)
+        public string AppName { get; set; } // app_name
+        public string CreatedText { get; set; } // created_text (length: 30)
+        public DateTime DueAt { get; set; } // due_at
+        public int[] Numbers { get; set; } // numbers
+        public string LiteralText { get; set; } // literal_text (length: 20)
+        public string NumberText { get; set; } // number_text (length: 10)
+
+        public ExpressionDefault()
+        {
+            Numbers = new int[] { 1, 2 };
+            LiteralText = "fallback";
+            NumberText = "0";
         }
     }
 
@@ -2433,8 +2458,8 @@ namespace Efrpg.PostgreSQL
             builder.Property(x => x.Description).HasColumnName(@"description").HasColumnType("character varying(50)").IsRequired().HasMaxLength(50);
             builder.Property(x => x.IsActive).HasColumnName(@"is_active").HasColumnType("boolean").IsRequired();
             builder.Property(x => x.ExternalRef).HasColumnName(@"external_ref").HasColumnType("uuid").IsRequired();
-            builder.Property(x => x.CreatedAt).HasColumnName(@"created_at").HasColumnType("timestamp with time zone").IsRequired();
-            builder.Property(x => x.CreatedDate).HasColumnName(@"created_date").HasColumnType("date").IsRequired();
+            builder.Property(x => x.CreatedAt).HasColumnName(@"created_at").HasColumnType("timestamp with time zone").IsRequired().HasDefaultValueSql(@"now()");
+            builder.Property(x => x.CreatedDate).HasColumnName(@"created_date").HasColumnType("date").IsRequired().HasDefaultValueSql(@"CURRENT_DATE");
             builder.Property(x => x.TheWordNull).HasColumnName(@"the_word_null").HasColumnType("character varying(20)").IsRequired(false).HasMaxLength(20);
             builder.Property(x => x.ReallyNull).HasColumnName(@"really_null").HasColumnType("character varying(20)").IsRequired(false).HasMaxLength(20);
             builder.Property(x => x.Tags).HasColumnName(@"tags").HasColumnType("text[]").IsRequired();
@@ -2469,6 +2494,25 @@ namespace Efrpg.PostgreSQL
 
             // Foreign keys
             builder.HasOne(a => a.Manager).WithMany(b => b.Employees).HasForeignKey(c => c.ManagerId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("fk_employee_manager");
+        }
+    }
+
+    // expression_default
+    public class ExpressionDefaultConfiguration : IEntityTypeConfiguration<ExpressionDefault>
+    {
+        public void Configure(EntityTypeBuilder<ExpressionDefault> builder)
+        {
+            builder.ToTable("expression_default", "public");
+            builder.HasKey(x => x.Id).HasName("expression_default_pkey");
+
+            builder.Property(x => x.Id).HasColumnName(@"id").HasColumnType("integer").IsRequired().ValueGeneratedOnAdd().UseIdentityColumn();
+            builder.Property(x => x.ChangedBy).HasColumnName(@"changed_by").HasColumnType("character varying(128)").IsRequired().HasMaxLength(128).HasDefaultValueSql(@"CURRENT_USER");
+            builder.Property(x => x.AppName).HasColumnName(@"app_name").HasColumnType("text").IsRequired(false).IsUnicode(false).HasDefaultValueSql(@"current_setting('application_name'::text)");
+            builder.Property(x => x.CreatedText).HasColumnName(@"created_text").HasColumnType("character varying(30)").IsRequired(false).HasMaxLength(30).HasDefaultValueSql(@"to_char(now(), 'YYYY-MM-DD'::text)");
+            builder.Property(x => x.DueAt).HasColumnName(@"due_at").HasColumnType("timestamp with time zone").IsRequired().HasDefaultValueSql(@"now() + '30 days'::interval");
+            builder.Property(x => x.Numbers).HasColumnName(@"numbers").HasColumnType("int4[]").IsRequired();
+            builder.Property(x => x.LiteralText).HasColumnName(@"literal_text").HasColumnType("character varying(20)").IsRequired().HasMaxLength(20);
+            builder.Property(x => x.NumberText).HasColumnName(@"number_text").HasColumnType("character varying(10)").IsRequired().HasMaxLength(10);
         }
     }
 

@@ -44,6 +44,7 @@ namespace Efrpg.Oracle
         DbSet<CurrenCy> CurrenCies { get; set; } // CURRENCIES
         DbSet<DefaultsAndGenerated> DefaultsAndGenerateds { get; set; } // DEFAULTS_AND_GENERATED
         DbSet<Employee> Employees { get; set; } // EMPLOYEE
+        DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // EXPRESSION_DEFAULT
         DbSet<Flight> Flights { get; set; } // FLIGHT
         DbSet<IdentityAlway> IdentityAlways { get; set; } // IDENTITY_ALWAYS
         DbSet<IdentityByDefault> IdentityByDefaults { get; set; } // IDENTITY_BY_DEFAULT
@@ -159,6 +160,7 @@ namespace Efrpg.Oracle
         public DbSet<CurrenCy> CurrenCies { get; set; } // CURRENCIES
         public DbSet<DefaultsAndGenerated> DefaultsAndGenerateds { get; set; } // DEFAULTS_AND_GENERATED
         public DbSet<Employee> Employees { get; set; } // EMPLOYEE
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // EXPRESSION_DEFAULT
         public DbSet<Flight> Flights { get; set; } // FLIGHT
         public DbSet<IdentityAlway> IdentityAlways { get; set; } // IDENTITY_ALWAYS
         public DbSet<IdentityByDefault> IdentityByDefaults { get; set; } // IDENTITY_BY_DEFAULT
@@ -217,6 +219,7 @@ namespace Efrpg.Oracle
             modelBuilder.ApplyConfiguration(new CurrenCyConfiguration());
             modelBuilder.ApplyConfiguration(new DefaultsAndGeneratedConfiguration());
             modelBuilder.ApplyConfiguration(new EmployeeConfiguration());
+            modelBuilder.ApplyConfiguration(new ExpressionDefaultConfiguration());
             modelBuilder.ApplyConfiguration(new FlightConfiguration());
             modelBuilder.ApplyConfiguration(new IdentityAlwayConfiguration());
             modelBuilder.ApplyConfiguration(new IdentityByDefaultConfiguration());
@@ -397,6 +400,7 @@ namespace Efrpg.Oracle
         public DbSet<CurrenCy> CurrenCies { get; set; } = null!; // CURRENCIES
         public DbSet<DefaultsAndGenerated> DefaultsAndGenerateds { get; set; } = null!; // DEFAULTS_AND_GENERATED
         public DbSet<Employee> Employees { get; set; } = null!; // EMPLOYEE
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } = null!; // EXPRESSION_DEFAULT
         public DbSet<Flight> Flights { get; set; } = null!; // FLIGHT
         public DbSet<IdentityAlway> IdentityAlways { get; set; } = null!; // IDENTITY_ALWAYS
         public DbSet<IdentityByDefault> IdentityByDefaults { get; set; } = null!; // IDENTITY_BY_DEFAULT
@@ -436,6 +440,7 @@ namespace Efrpg.Oracle
             CurrenCies = new FakeDbSet<CurrenCy>("Id");
             DefaultsAndGenerateds = new FakeDbSet<DefaultsAndGenerated>("Id");
             Employees = new FakeDbSet<Employee>("EmployeeId");
+            ExpressionDefaults = new FakeDbSet<ExpressionDefault>("Id");
             Flights = new FakeDbSet<Flight>("FlightId");
             IdentityAlways = new FakeDbSet<IdentityAlway>("Id");
             IdentityByDefaults = new FakeDbSet<IdentityByDefault>("Id");
@@ -1800,7 +1805,7 @@ namespace Efrpg.Oracle
         [StringLength(36)]
         [Required(AllowEmptyStrings = true)]
         [Display(Name = "External ref")]
-        public string ExternalRef { get; set; } // EXTERNAL_REF (length: 36)
+        public string ExternalRef { get; set; } = null!; // EXTERNAL_REF (length: 36)
 
         [Required]
         [Display(Name = "Created at")]
@@ -1832,7 +1837,6 @@ namespace Efrpg.Oracle
             UnitPrice = 9.99m;
             Description = "Hello world";
             IsActive = true;
-            ExternalRef = "SYS_GUID()";
             OnNullCol = "fallback";
             TheWordNull = "NULL";
         }
@@ -1873,6 +1877,54 @@ namespace Efrpg.Oracle
         public Employee()
         {
             Employees = new List<Employee>();
+        }
+    }
+
+    // EXPRESSION_DEFAULT
+    [Table("EXPRESSION_DEFAULT", Schema = "EFRPGTEST")]
+    public class ExpressionDefault
+    {
+        [Key, Column(Order = 1)]
+        [Required]
+        [Display(Name = "Id")]
+        public decimal Id { get; set; } // ID (Primary key)
+
+        [MaxLength(128)]
+        [StringLength(128)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Changed by")]
+        public string ChangedBy { get; set; } = null!; // CHANGED_BY (length: 128)
+
+        [MaxLength(128)]
+        [StringLength(128)]
+        [Display(Name = "Os user")]
+        public string OsUser { get; set; } // OS_USER (length: 128)
+
+        [MaxLength(30)]
+        [StringLength(30)]
+        [Display(Name = "Created text")]
+        public string CreatedText { get; set; } // CREATED_TEXT (length: 30)
+
+        [Required]
+        [Display(Name = "Due at")]
+        public DateTime DueAt { get; set; } // DUE_AT
+
+        [MaxLength(20)]
+        [StringLength(20)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Literal text")]
+        public string LiteralText { get; set; } // LITERAL_TEXT (length: 20)
+
+        [MaxLength(10)]
+        [StringLength(10)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Number text")]
+        public string NumberText { get; set; } // NUMBER_TEXT (length: 10)
+
+        public ExpressionDefault()
+        {
+            LiteralText = "fallback";
+            NumberText = "0";
         }
     }
 
@@ -2551,9 +2603,9 @@ namespace Efrpg.Oracle
             builder.Property(x => x.UnitPrice).HasColumnName(@"UNIT_PRICE").HasColumnType("number");
             builder.Property(x => x.Description).HasColumnName(@"DESCRIPTION").HasColumnType("varchar2(50)");
             builder.Property(x => x.IsActive).HasColumnName(@"IS_ACTIVE").HasColumnType("number(1)");
-            builder.Property(x => x.ExternalRef).HasColumnName(@"EXTERNAL_REF").HasColumnType("varchar2(36)");
-            builder.Property(x => x.CreatedAt).HasColumnName(@"CREATED_AT").HasColumnType("timestamp");
-            builder.Property(x => x.CreatedDate).HasColumnName(@"CREATED_DATE").HasColumnType("date");
+            builder.Property(x => x.ExternalRef).HasColumnName(@"EXTERNAL_REF").HasColumnType("varchar2(36)").HasDefaultValueSql(@"SYS_GUID()");
+            builder.Property(x => x.CreatedAt).HasColumnName(@"CREATED_AT").HasColumnType("timestamp").HasDefaultValueSql(@"SYSTIMESTAMP");
+            builder.Property(x => x.CreatedDate).HasColumnName(@"CREATED_DATE").HasColumnType("date").HasDefaultValueSql(@"SYSDATE");
             builder.Property(x => x.OnNullCol).HasColumnName(@"ON_NULL_COL").HasColumnType("varchar2(20)");
             builder.Property(x => x.TheWordNull).HasColumnName(@"THE_WORD_NULL").HasColumnType("varchar2(20)").IsRequired(false);
             builder.Property(x => x.LineTotal).HasColumnName(@"LINE_TOTAL").HasColumnType("number").IsRequired(false);
@@ -2573,6 +2625,23 @@ namespace Efrpg.Oracle
 
             // Foreign keys
             builder.HasOne(a => a.Manager).WithMany(b => b.Employees).HasForeignKey(c => c.ManagerId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_EMPLOYEE_MANAGER");
+        }
+    }
+
+    // EXPRESSION_DEFAULT
+    public class ExpressionDefaultConfiguration : IEntityTypeConfiguration<ExpressionDefault>
+    {
+        public void Configure(EntityTypeBuilder<ExpressionDefault> builder)
+        {
+            builder.HasKey(x => x.Id).HasName("PK_EXPRESSION_DEFAULT");
+
+            builder.Property(x => x.Id).HasColumnName(@"ID").HasColumnType("number").ValueGeneratedOnAdd();
+            builder.Property(x => x.ChangedBy).HasColumnName(@"CHANGED_BY").HasColumnType("varchar2(128)").HasDefaultValueSql(@"USER");
+            builder.Property(x => x.OsUser).HasColumnName(@"OS_USER").HasColumnType("varchar2(128)").IsRequired(false).HasDefaultValueSql(@"SYS_CONTEXT('USERENV', 'OS_USER')");
+            builder.Property(x => x.CreatedText).HasColumnName(@"CREATED_TEXT").HasColumnType("varchar2(30)").IsRequired(false).HasDefaultValueSql(@"TO_CHAR(SYSDATE, 'YYYY-MM-DD')");
+            builder.Property(x => x.DueAt).HasColumnName(@"DUE_AT").HasColumnType("date").HasDefaultValueSql(@"SYSDATE + 30");
+            builder.Property(x => x.LiteralText).HasColumnName(@"LITERAL_TEXT").HasColumnType("varchar2(20)");
+            builder.Property(x => x.NumberText).HasColumnName(@"NUMBER_TEXT").HasColumnType("varchar2(10)");
         }
     }
 

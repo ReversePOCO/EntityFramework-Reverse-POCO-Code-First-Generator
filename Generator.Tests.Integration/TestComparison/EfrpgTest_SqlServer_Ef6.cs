@@ -77,6 +77,7 @@ namespace Efrpg.V3TestE1
         DbSet<EnumWithDefaultValue> EnumWithDefaultValues { get; set; } // EnumWithDefaultValue
         DbSet<EventProcessor> EventProcessors { get; set; } // EventProcessor
         DbSet<EventProcessorEventFilter> EventProcessorEventFilters { get; set; } // EventProcessorEventFilter
+        DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         DbSet<FFRS_Cv> FFRS_Cvs { get; set; } // CV
         DbSet<FinancialInstitutionOffice> FinancialInstitutionOffices { get; set; } // FinancialInstitutionOffice
         DbSet<FkTest_SmallDecimalTestAttribute> FkTest_SmallDecimalTestAttributes { get; set; } // SmallDecimalTestAttribute
@@ -422,6 +423,7 @@ namespace Efrpg.V3TestE1
         public DbSet<EnumWithDefaultValue> EnumWithDefaultValues { get; set; } // EnumWithDefaultValue
         public DbSet<EventProcessor> EventProcessors { get; set; } // EventProcessor
         public DbSet<EventProcessorEventFilter> EventProcessorEventFilters { get; set; } // EventProcessorEventFilter
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         public DbSet<FFRS_Cv> FFRS_Cvs { get; set; } // CV
         public DbSet<FinancialInstitutionOffice> FinancialInstitutionOffices { get; set; } // FinancialInstitutionOffice
         public DbSet<FkTest_SmallDecimalTestAttribute> FkTest_SmallDecimalTestAttributes { get; set; } // SmallDecimalTestAttribute
@@ -605,6 +607,7 @@ namespace Efrpg.V3TestE1
             modelBuilder.Configurations.Add(new EnumWithDefaultValueConfiguration());
             modelBuilder.Configurations.Add(new EventProcessorConfiguration());
             modelBuilder.Configurations.Add(new EventProcessorEventFilterConfiguration());
+            modelBuilder.Configurations.Add(new ExpressionDefaultConfiguration());
             modelBuilder.Configurations.Add(new FFRS_CvConfiguration());
             modelBuilder.Configurations.Add(new FinancialInstitutionOfficeConfiguration());
             modelBuilder.Configurations.Add(new FkTest_SmallDecimalTestAttributeConfiguration());
@@ -903,6 +906,7 @@ namespace Efrpg.V3TestE1
             modelBuilder.Configurations.Add(new EnumWithDefaultValueConfiguration(schema));
             modelBuilder.Configurations.Add(new EventProcessorConfiguration(schema));
             modelBuilder.Configurations.Add(new EventProcessorEventFilterConfiguration(schema));
+            modelBuilder.Configurations.Add(new ExpressionDefaultConfiguration(schema));
             modelBuilder.Configurations.Add(new FFRS_CvConfiguration(schema));
             modelBuilder.Configurations.Add(new FinancialInstitutionOfficeConfiguration(schema));
             modelBuilder.Configurations.Add(new FkTest_SmallDecimalTestAttributeConfiguration(schema));
@@ -2693,6 +2697,7 @@ namespace Efrpg.V3TestE1
         public DbSet<EnumWithDefaultValue> EnumWithDefaultValues { get; set; } // EnumWithDefaultValue
         public DbSet<EventProcessor> EventProcessors { get; set; } // EventProcessor
         public DbSet<EventProcessorEventFilter> EventProcessorEventFilters { get; set; } // EventProcessorEventFilter
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         public DbSet<FFRS_Cv> FFRS_Cvs { get; set; } // CV
         public DbSet<FinancialInstitutionOffice> FinancialInstitutionOffices { get; set; } // FinancialInstitutionOffice
         public DbSet<FkTest_SmallDecimalTestAttribute> FkTest_SmallDecimalTestAttributes { get; set; } // SmallDecimalTestAttribute
@@ -2815,6 +2820,7 @@ namespace Efrpg.V3TestE1
             EnumWithDefaultValues = new FakeDbSet<EnumWithDefaultValue>("Id");
             EventProcessors = new FakeDbSet<EventProcessor>("Id");
             EventProcessorEventFilters = new FakeDbSet<EventProcessorEventFilter>("Id");
+            ExpressionDefaults = new FakeDbSet<ExpressionDefault>("Id");
             FFRS_Cvs = new FakeDbSet<FFRS_Cv>("BatchUid", "Cvid");
             FinancialInstitutionOffices = new FakeDbSet<FinancialInstitutionOffice>("FinancialInstitutionCode");
             FkTest_SmallDecimalTestAttributes = new FakeDbSet<FkTest_SmallDecimalTestAttribute>("FkId");
@@ -4758,6 +4764,30 @@ namespace Efrpg.V3TestE1
         /// Parent EventProcessor pointed by [EventProcessorEventFilter].([EventProcessorId]) (FK_EventProcessorEventFilter__EventProcessor)
         /// </summary>
         public virtual EventProcessor EventProcessor { get; set; } // FK_EventProcessorEventFilter__EventProcessor
+    }
+
+    // ExpressionDefault
+    public class ExpressionDefault
+    {
+        public int Id { get; set; } // Id (Primary key)
+        public string ChangedBy { get; set; } // ChangedBy (length: 128)
+        public string AppName { get; set; } // AppName (length: 128)
+        public string DbUser { get; set; } // DbUser (length: 128)
+        public string CreatedText { get; set; } // CreatedText (length: 30)
+        public DateTime DueAt { get; set; } // DueAt
+        public DateTime CreatedAt { get; set; } // CreatedAt
+        public string Token { get; set; } // Token (length: 36)
+        public string LiteralText { get; set; } // LiteralText (length: 20)
+        public string NumberText { get; set; } // NumberText (length: 10)
+
+        public ExpressionDefault()
+        {
+            DueAt = DateTime.UtcNow;
+            CreatedAt = DateTime.UtcNow;
+            Token = Guid.NewGuid().ToString();
+            LiteralText = "fallback";
+            NumberText = "0";
+        }
     }
 
     // CV
@@ -6709,6 +6739,32 @@ namespace Efrpg.V3TestE1
 
             // Foreign keys
             HasRequired(a => a.EventProcessor).WithMany(b => b.EventProcessorEventFilters).HasForeignKey(c => c.EventProcessorId).WillCascadeOnDelete(false); // FK_EventProcessorEventFilter__EventProcessor
+        }
+    }
+
+    // ExpressionDefault
+    public class ExpressionDefaultConfiguration : EntityTypeConfiguration<ExpressionDefault>
+    {
+        public ExpressionDefaultConfiguration()
+            : this("dbo")
+        {
+        }
+
+        public ExpressionDefaultConfiguration(string schema)
+        {
+            ToTable("ExpressionDefault", schema);
+            HasKey(x => x.Id);
+
+            Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().HasDatabaseGeneratedOption(DatabaseGeneratedOption.Identity);
+            Property(x => x.ChangedBy).HasColumnName(@"ChangedBy").HasColumnType("nvarchar").IsRequired().HasMaxLength(128);
+            Property(x => x.AppName).HasColumnName(@"AppName").HasColumnType("nvarchar").IsOptional().HasMaxLength(128);
+            Property(x => x.DbUser).HasColumnName(@"DbUser").HasColumnType("nvarchar").IsOptional().HasMaxLength(128);
+            Property(x => x.CreatedText).HasColumnName(@"CreatedText").HasColumnType("varchar").IsOptional().IsUnicode(false).HasMaxLength(30);
+            Property(x => x.DueAt).HasColumnName(@"DueAt").HasColumnType("datetime2").IsRequired();
+            Property(x => x.CreatedAt).HasColumnName(@"CreatedAt").HasColumnType("datetime2").IsRequired();
+            Property(x => x.Token).HasColumnName(@"Token").HasColumnType("nvarchar").IsRequired().HasMaxLength(36);
+            Property(x => x.LiteralText).HasColumnName(@"LiteralText").HasColumnType("nvarchar").IsRequired().HasMaxLength(20);
+            Property(x => x.NumberText).HasColumnName(@"NumberText").HasColumnType("varchar").IsRequired().IsUnicode(false).HasMaxLength(10);
         }
     }
 
