@@ -174,11 +174,6 @@ namespace Azure10
         public bool Published { get; set; } // Published
         public int DisplayOrder { get; set; } // DisplayOrder
         public bool InEurope { get; set; } // InEurope
-
-        public Country()
-        {
-            InEurope = true;
-        }
     }
 
     // NotificationType

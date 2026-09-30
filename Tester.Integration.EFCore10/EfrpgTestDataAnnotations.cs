@@ -82,6 +82,7 @@ namespace V10EfrpgTestDataAnnotations
         DbSet<EnumWithDefaultValue> EnumWithDefaultValues { get; set; } // EnumWithDefaultValue
         DbSet<EventProcessor> EventProcessors { get; set; } // EventProcessor
         DbSet<EventProcessorEventFilter> EventProcessorEventFilters { get; set; } // EventProcessorEventFilter
+        DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         DbSet<FFRS_Cv> FFRS_Cvs { get; set; } // CV
         DbSet<FinancialInstitutionOffice> FinancialInstitutionOffices { get; set; } // FinancialInstitutionOffice
         DbSet<FkTest_SmallDecimalTestAttribute> FkTest_SmallDecimalTestAttributes { get; set; } // SmallDecimalTestAttribute
@@ -464,6 +465,7 @@ namespace V10EfrpgTestDataAnnotations
         public DbSet<EnumWithDefaultValue> EnumWithDefaultValues { get; set; } // EnumWithDefaultValue
         public DbSet<EventProcessor> EventProcessors { get; set; } // EventProcessor
         public DbSet<EventProcessorEventFilter> EventProcessorEventFilters { get; set; } // EventProcessorEventFilter
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         public DbSet<FFRS_Cv> FFRS_Cvs { get; set; } // CV
         public DbSet<FinancialInstitutionOffice> FinancialInstitutionOffices { get; set; } // FinancialInstitutionOffice
         public DbSet<FkTest_SmallDecimalTestAttribute> FkTest_SmallDecimalTestAttributes { get; set; } // SmallDecimalTestAttribute
@@ -611,6 +613,7 @@ namespace V10EfrpgTestDataAnnotations
             modelBuilder.ApplyConfiguration(new EnumWithDefaultValueConfiguration());
             modelBuilder.ApplyConfiguration(new EventProcessorConfiguration());
             modelBuilder.ApplyConfiguration(new EventProcessorEventFilterConfiguration());
+            modelBuilder.ApplyConfiguration(new ExpressionDefaultConfiguration());
             modelBuilder.ApplyConfiguration(new FFRS_CvConfiguration());
             modelBuilder.ApplyConfiguration(new FinancialInstitutionOfficeConfiguration());
             modelBuilder.ApplyConfiguration(new FkTest_SmallDecimalTestAttributeConfiguration());
@@ -2509,6 +2512,7 @@ namespace V10EfrpgTestDataAnnotations
         public DbSet<EnumWithDefaultValue> EnumWithDefaultValues { get; set; } = null!; // EnumWithDefaultValue
         public DbSet<EventProcessor> EventProcessors { get; set; } = null!; // EventProcessor
         public DbSet<EventProcessorEventFilter> EventProcessorEventFilters { get; set; } = null!; // EventProcessorEventFilter
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } = null!; // ExpressionDefault
         public DbSet<FFRS_Cv> FFRS_Cvs { get; set; } = null!; // CV
         public DbSet<FinancialInstitutionOffice> FinancialInstitutionOffices { get; set; } = null!; // FinancialInstitutionOffice
         public DbSet<FkTest_SmallDecimalTestAttribute> FkTest_SmallDecimalTestAttributes { get; set; } = null!; // SmallDecimalTestAttribute
@@ -2632,6 +2636,7 @@ namespace V10EfrpgTestDataAnnotations
             EnumWithDefaultValues = new FakeDbSet<EnumWithDefaultValue>("Id");
             EventProcessors = new FakeDbSet<EventProcessor>("Id");
             EventProcessorEventFilters = new FakeDbSet<EventProcessorEventFilter>("Id");
+            ExpressionDefaults = new FakeDbSet<ExpressionDefault>("Id");
             FFRS_Cvs = new FakeDbSet<FFRS_Cv>("BatchUid", "Cvid");
             FinancialInstitutionOffices = new FakeDbSet<FinancialInstitutionOffice>("FinancialInstitutionCode");
             FkTest_SmallDecimalTestAttributes = new FakeDbSet<FkTest_SmallDecimalTestAttribute>("FkId");
@@ -5398,6 +5403,34 @@ namespace V10EfrpgTestDataAnnotations
         public virtual EventProcessor EventProcessor { get; set; } // FK_EventProcessorEventFilter__EventProcessor
     }
 
+    // ExpressionDefault
+    [Table("ExpressionDefault", Schema = "dbo")]
+    public class ExpressionDefault
+    {
+        public int Id { get; set; } // Id (Primary key)
+        public string ChangedBy { get; set; } // ChangedBy (length: 128)
+        public string AppName { get; set; } // AppName (length: 128)
+        public string DbUser { get; set; } // DbUser (length: 128)
+
+        [Unicode(false)]
+        public string CreatedText { get; set; } // CreatedText (length: 30)
+        public DateTime DueAt { get; set; } // DueAt
+        public DateTime CreatedAt { get; set; } // CreatedAt
+        public string Token { get; set; } // Token (length: 36)
+        public string LiteralText { get; set; } // LiteralText (length: 20)
+
+        [Unicode(false)]
+        public string NumberText { get; set; } // NumberText (length: 10)
+
+        public ExpressionDefault()
+        {
+            CreatedAt = DateTime.UtcNow;
+            Token = Guid.NewGuid().ToString();
+            LiteralText = "fallback";
+            NumberText = "0";
+        }
+    }
+
     // CV
     [Table("CV", Schema = "FFRS")]
     public class FFRS_Cv
@@ -7313,6 +7346,26 @@ namespace V10EfrpgTestDataAnnotations
             builder.HasOne(a => a.EventProcessor).WithMany(b => b.EventProcessorEventFilters).HasForeignKey(c => c.EventProcessorId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_EventProcessorEventFilter__EventProcessor");
 
             builder.HasIndex(x => new { x.EventProcessorId, x.WantedEventId }).HasDatabaseName("IX_EventProcessorEventFilter").IsUnique();
+        }
+    }
+
+    // ExpressionDefault
+    public class ExpressionDefaultConfiguration : IEntityTypeConfiguration<ExpressionDefault>
+    {
+        public void Configure(EntityTypeBuilder<ExpressionDefault> builder)
+        {
+            builder.HasKey(x => x.Id).HasName("PK_ExpressionDefault").IsClustered();
+
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").ValueGeneratedOnAdd().UseIdentityColumn();
+            builder.Property(x => x.ChangedBy).HasColumnName(@"ChangedBy").HasColumnType("nvarchar(128)").HasDefaultValueSql(@"suser_sname()");
+            builder.Property(x => x.AppName).HasColumnName(@"AppName").HasColumnType("nvarchar(128)").IsRequired(false).HasDefaultValueSql(@"app_name()");
+            builder.Property(x => x.DbUser).HasColumnName(@"DbUser").HasColumnType("nvarchar(128)").IsRequired(false).HasDefaultValueSql(@"user_name()");
+            builder.Property(x => x.CreatedText).HasColumnName(@"CreatedText").HasColumnType("varchar(30)").IsRequired(false).HasDefaultValueSql(@"CONVERT([varchar](30),getdate(),(126))");
+            builder.Property(x => x.DueAt).HasColumnName(@"DueAt").HasColumnType("datetime2").HasDefaultValueSql(@"dateadd(day,(30),sysutcdatetime())");
+            builder.Property(x => x.CreatedAt).HasColumnName(@"CreatedAt").HasColumnType("datetime2").HasDefaultValueSql(@"sysutcdatetime()");
+            builder.Property(x => x.Token).HasColumnName(@"Token").HasColumnType("nvarchar(36)").HasDefaultValueSql(@"newid()");
+            builder.Property(x => x.LiteralText).HasColumnName(@"LiteralText").HasColumnType("nvarchar(20)").HasDefaultValueSql(@"'fallback'");
+            builder.Property(x => x.NumberText).HasColumnName(@"NumberText").HasColumnType("varchar(10)").HasDefaultValueSql(@"0");
         }
     }
 

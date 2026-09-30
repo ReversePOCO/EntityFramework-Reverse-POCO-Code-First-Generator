@@ -68,6 +68,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
         public DbSet<DsOpe> DsOpes { get; set; } = null!; // DSOpe
         public DbSet<EventProcessor> EventProcessors { get; set; } = null!; // EventProcessor
         public DbSet<EventProcessorEventFilter> EventProcessorEventFilters { get; set; } = null!; // EventProcessorEventFilter
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } = null!; // ExpressionDefault
         public DbSet<FFRS_Cv> FFRS_Cvs { get; set; } = null!; // CV
         public DbSet<FinancialInstitutionOffice> FinancialInstitutionOffices { get; set; } = null!; // FinancialInstitutionOffice
         public DbSet<FkTest_SmallDecimalTestAttribute> FkTest_SmallDecimalTestAttributes { get; set; } = null!; // SmallDecimalTestAttribute
@@ -192,6 +193,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
             DsOpes = new FakeDbSet<DsOpe>("Id");
             EventProcessors = new FakeDbSet<EventProcessor>("Id");
             EventProcessorEventFilters = new FakeDbSet<EventProcessorEventFilter>("Id");
+            ExpressionDefaults = new FakeDbSet<ExpressionDefault>("Id");
             FFRS_Cvs = new FakeDbSet<FFRS_Cv>("BatchUid", "Cvid");
             FinancialInstitutionOffices = new FakeDbSet<FinancialInstitutionOffice>("FinancialInstitutionCode");
             FkTest_SmallDecimalTestAttributes = new FakeDbSet<FkTest_SmallDecimalTestAttribute>("FkId");

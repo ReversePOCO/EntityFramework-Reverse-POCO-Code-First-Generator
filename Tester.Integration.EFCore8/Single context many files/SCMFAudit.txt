@@ -53,6 +53,7 @@ Entities\DefaultCheckForNull.cs
 Entities\DsOpe.cs
 Entities\EventProcessor.cs
 Entities\EventProcessorEventFilter.cs
+Entities\ExpressionDefault.cs
 Entities\FFRS_Cv.cs
 Entities\FinancialInstitutionOffice.cs
 Entities\FkTest_SmallDecimalTestAttribute.cs
@@ -174,6 +175,7 @@ Configuration\DefaultCheckForNullConfiguration.cs
 Configuration\DsOpeConfiguration.cs
 Configuration\EventProcessorConfiguration.cs
 Configuration\EventProcessorEventFilterConfiguration.cs
+Configuration\ExpressionDefaultConfiguration.cs
 Configuration\FFRS_CvConfiguration.cs
 Configuration\FinancialInstitutionOfficeConfiguration.cs
 Configuration\FkTest_SmallDecimalTestAttributeConfiguration.cs

@@ -88,6 +88,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
         public DbSet<DsOpe> DsOpes { get; set; } // DSOpe
         public DbSet<EventProcessor> EventProcessors { get; set; } // EventProcessor
         public DbSet<EventProcessorEventFilter> EventProcessorEventFilters { get; set; } // EventProcessorEventFilter
+        public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
         public DbSet<FFRS_Cv> FFRS_Cvs { get; set; } // CV
         public DbSet<FinancialInstitutionOffice> FinancialInstitutionOffices { get; set; } // FinancialInstitutionOffice
         public DbSet<FkTest_SmallDecimalTestAttribute> FkTest_SmallDecimalTestAttributes { get; set; } // SmallDecimalTestAttribute
@@ -236,6 +237,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
             modelBuilder.ApplyConfiguration(new DsOpeConfiguration());
             modelBuilder.ApplyConfiguration(new EventProcessorConfiguration());
             modelBuilder.ApplyConfiguration(new EventProcessorEventFilterConfiguration());
+            modelBuilder.ApplyConfiguration(new ExpressionDefaultConfiguration());
             modelBuilder.ApplyConfiguration(new FFRS_CvConfiguration());
             modelBuilder.ApplyConfiguration(new FinancialInstitutionOfficeConfiguration());
             modelBuilder.ApplyConfiguration(new FkTest_SmallDecimalTestAttributeConfiguration());

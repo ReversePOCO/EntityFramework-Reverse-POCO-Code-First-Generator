@@ -173,11 +173,6 @@ namespace RP
         public bool Published { get; set; } // Published
         public int DisplayOrder { get; set; } // DisplayOrder
         public bool InEurope { get; set; } // InEurope
-
-        public Country()
-        {
-            InEurope = true;
-        }
     }
 
     // NotificationType
@@ -217,7 +212,7 @@ namespace RP
             builder.Property(x => x.VatRate).HasColumnName(@"VatRate").HasColumnType("decimal(9,5)").HasPrecision(9,5).IsRequired(false);
             builder.Property(x => x.Published).HasColumnName(@"Published").HasColumnType("bit").IsRequired();
             builder.Property(x => x.DisplayOrder).HasColumnName(@"DisplayOrder").HasColumnType("int").IsRequired();
-            builder.Property(x => x.InEurope).HasColumnName(@"InEurope").HasColumnType("bit").IsRequired();
+            builder.Property(x => x.InEurope).HasColumnName(@"InEurope").HasColumnType("bit").IsRequired().HasDefaultValueSql(@"CONVERT([bit],(0))");
 
             builder.HasIndex(x => new { x.DisplayOrder, x.Name }).HasDatabaseName("IX_Country_DisplayOrder_Name");
         }
