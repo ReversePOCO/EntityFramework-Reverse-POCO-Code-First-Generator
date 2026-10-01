@@ -74,6 +74,12 @@ namespace EntityFramework_Reverse_POCO_Generator
         private readonly ConnectionStringSource _source;
 
         /// <summary>
+        ///     False when Settings.Namespace is code. The box then shows that code read-only, and OK leaves the line
+        ///     alone.
+        /// </summary>
+        private readonly bool _namespaceEditable;
+
+        /// <summary>
         ///     The schema from the last successful Test, when the connection string has not changed since, so the
         ///     object picker that follows can open on it instead of reading the database a second time.
         /// </summary>
@@ -85,7 +91,8 @@ namespace EntityFramework_Reverse_POCO_Generator
             get
             {
                 return new TemplateConfiguration(SelectedDatabase, SelectedTemplate, _connectionString.Text.Trim(),
-                    _dbContextName.Text.Trim(), _connectionStringName.Text.Trim(), _namespace.Text.Trim(), _source,
+                    _dbContextName.Text.Trim(), _connectionStringName.Text.Trim(),
+                    _namespaceEditable ? _namespace.Text.Trim() : string.Empty, _source,
                     new TemplateOptions(
                         _separateFiles.IsChecked == true,
                         _fileScopedNamespaces.IsChecked == true,
@@ -119,6 +126,7 @@ namespace EntityFramework_Reverse_POCO_Generator
             _isNewTemplate = isNewTemplate;
             _shownDatabase = current.Database;
             _source        = current.Source;
+            _namespaceEditable = current.IsNamespaceEditable;
 
             Title                 = "EntityFramework Reverse POCO Generator";
             Width                 = 680;
@@ -138,7 +146,7 @@ namespace EntityFramework_Reverse_POCO_Generator
             _dbContextName    = new TextBox { Text = current.DbContextName, Padding = new Thickness(6, 4, 6, 4) };
             _connectionStringName = new TextBox { Text = current.ConnectionStringName, Padding = new Thickness(6, 4, 6, 4) };
             _lastDbContextName    = current.DbContextName;
-            _namespace        = new TextBox { Text = current.Namespace, Padding = new Thickness(6, 4, 6, 4) };
+            _namespace        = new TextBox { Text = current.NamespaceExpression ?? current.Namespace, Padding = new Thickness(6, 4, 6, 4), IsReadOnly = !_namespaceEditable, Opacity = _namespaceEditable ? 1.0 : 0.75 };
             _separateFiles        = Option("Generate a file per class, in sub-folders", current.Options.GenerateSeparateFiles);
             _fileScopedNamespaces = Option("Use file-scoped namespaces (C# 10)", current.Options.UseFileScopedNamespaces);
             _fakeContext          = Option("Generate a FakeDbContext for unit tests", current.Options.AddUnitTestingDbContext);
@@ -419,7 +427,9 @@ namespace EntityFramework_Reverse_POCO_Generator
             body.Children.Add(_namespace);
             body.Children.Add(new TextBlock
             {
-                Text = "Leave the namespace blank to use the namespace of the project the .tt sits in.",
+                Text = _namespaceEditable
+                    ? "Leave the namespace blank to use the namespace of the project the .tt sits in."
+                    : "Set in code. Edit it in the .tt to change it; OK leaves this line alone.",
                 TextWrapping = TextWrapping.Wrap,
                 Opacity = 0.75,
                 Margin = new Thickness(0, 4, 0, 12)

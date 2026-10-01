@@ -244,6 +244,49 @@ namespace Efrpg.Gui.Tests
             Assert.That(TemplateConfiguration.ReadFrom(Shipped(), "Fallback").Namespace, Is.Empty);
         }
 
+        private const string ComputedNamespace =
+            "<#\r\n" +
+            "    Settings.Namespace = DefaultNamespace + \".Domain\"; // Override the default namespace here\r\n" +
+            "    Settings.DbContextName = \"MyDbContext\";\r\n" +
+            "#>\r\n";
+
+        /// <summary>
+        ///     Issue #889. The dialog cannot show a concatenation as a namespace, so it read as empty, and empty was
+        ///     written back as DefaultNamespace: OK with nothing changed threw the user's code away.
+        /// </summary>
+        [Test]
+        public void ApplyTo_UnchangedWithANamespaceSetInCode_LeavesTheFileAlone()
+        {
+            var settings = new TemplateSettingsFile(ComputedNamespace);
+
+            var text = TemplateConfiguration.ReadFrom(settings, "Fallback").ApplyTo(settings);
+
+            Assert.That(text, Is.EqualTo(ComputedNamespace));
+        }
+
+        [Test]
+        public void ReadFrom_ANamespaceSetInCode_IsShownAsItselfAndIsNotEditable()
+        {
+            var configuration = TemplateConfiguration.ReadFrom(new TemplateSettingsFile(ComputedNamespace), "Fallback");
+
+            Assert.That(configuration.IsNamespaceEditable, Is.False);
+            Assert.That(configuration.NamespaceExpression, Is.EqualTo("DefaultNamespace + \".Domain\""));
+            Assert.That(configuration.Namespace, Is.Empty);
+        }
+
+        [Test]
+        public void ReadFrom_ALiteralNamespace_IsEditable()
+        {
+            var settings = Shipped();
+            settings.TrySetExpression("Namespace", "\"Accounts.Billing\"");
+
+            var configuration = TemplateConfiguration.ReadFrom(settings, "Fallback");
+
+            Assert.That(configuration.IsNamespaceEditable, Is.True);
+            Assert.That(configuration.NamespaceExpression, Is.Null);
+            Assert.That(configuration.Namespace, Is.EqualTo("Accounts.Billing"));
+        }
+
         [TestCase("", true)]
         [TestCase("Accounts", true)]
         [TestCase("Accounts.Billing", true)]

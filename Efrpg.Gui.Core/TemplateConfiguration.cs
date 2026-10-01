@@ -88,6 +88,15 @@ namespace Efrpg.Gui
         /// </summary>
         public string Namespace { get; }
 
+        /// <summary>
+        ///     The right-hand side of Settings.Namespace when it is code - a concatenation, a call - rather than a
+        ///     literal or <c>DefaultNamespace</c>, for display; otherwise null. <see cref="Namespace"/> is then empty,
+        ///     and <see cref="ApplyTo"/> leaves the line alone.
+        /// </summary>
+        public string NamespaceExpression { get; private set; }
+
+        public bool IsNamespaceEditable => NamespaceExpression == null;
+
         /// <summary>What the shipped template holds in Settings.Namespace, and what empty means here.</summary>
         public const string DefaultNamespaceExpression = "DefaultNamespace";
 
@@ -152,7 +161,10 @@ namespace Efrpg.Gui
                     settings.GetString("ConnectionStringName") ?? dbContextName,
                     ReadNamespace(settings),
                     source,
-                    TemplateOptions.ReadFrom(settings));
+                    TemplateOptions.ReadFrom(settings))
+                {
+                    NamespaceExpression = NamespaceSetInCode(settings)
+                };
         }
 
         /// <summary>
@@ -165,6 +177,20 @@ namespace Efrpg.Gui
             var literal = settings.GetString("Namespace");
 
             return literal ?? string.Empty;
+        }
+
+        /// <summary>
+        ///     The right-hand side of Settings.Namespace when it is neither a string literal nor
+        ///     <c>DefaultNamespace</c>, or null.
+        /// </summary>
+        private static string NamespaceSetInCode(TemplateSettingsFile settings)
+        {
+            if (settings.GetString("Namespace") != null)
+                return null;
+
+            var expression = settings.GetExpression("Namespace");
+
+            return expression == null || expression == DefaultNamespaceExpression ? null : expression;
         }
 
         /// <summary>
@@ -236,6 +262,11 @@ namespace Efrpg.Gui
         private void WriteNamespace(TemplateSettingsFile settings)
         {
             if (!HasValidNamespace)
+                return;
+
+            // Empty reads back from code too, where writing DefaultNamespace would discard the user's expression.
+            // Only a literal is the dialog's to clear.
+            if (Namespace.Length == 0 && NamespaceSetInCode(settings) != null)
                 return;
 
             settings.TrySetExpression("Namespace",
