@@ -31,7 +31,7 @@ namespace EntityFramework_Reverse_POCO_Generator
             if (path == null || !File.Exists(path))
                 return;
 
-            var result = TemplateUpgrade.Upgrade(File.ReadAllText(path));
+            var result = TemplateUpgrade.Upgrade(TemplateFileUpdater.Read(item, path));
 
             if (!result.Succeeded)
             {

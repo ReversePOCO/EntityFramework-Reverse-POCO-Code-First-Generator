@@ -28,6 +28,36 @@ namespace EntityFramework_Reverse_POCO_Generator
     internal static class TemplateFileUpdater
     {
         /// <summary>
+        ///     The text <see cref="Apply"/> will replace: the editor buffer when the document is open, otherwise the
+        ///     file. Every command that rewrites a .tt has to start from this.
+        /// </summary>
+        /// <remarks>
+        ///     Starting from the file behind an open document builds the new text from the last save, and Apply then
+        ///     writes that over the buffer, discarding every unsaved edit, including ones unrelated to the change being
+        ///     made (#891). Starting from the buffer carries them through, and the save that regenerates keeps them.
+        /// </remarks>
+        public static string Read(ProjectItem item, string path)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var document = OpenDocument(item, path);
+            if (document != null)
+            {
+                try
+                {
+                    var text = (TextDocument) document.Object("TextDocument");
+                    return text.StartPoint.CreateEditPoint().GetText(text.EndPoint);
+                }
+                catch (Exception)
+                {
+                    // No text buffer to read. SaveThroughEditor needs the same one, so it fails rather than writing.
+                }
+            }
+
+            return File.ReadAllText(path);
+        }
+
+        /// <summary>
         ///     Replaces the whole content of the item's file and regenerates. Returns false with a reason when the
         ///     file was written but generation could not be triggered - the .tt is correct either way, and saving it
         ///     regenerates, so this is worth reporting but never worth undoing.

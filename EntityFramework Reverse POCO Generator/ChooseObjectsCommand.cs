@@ -36,7 +36,7 @@ namespace EntityFramework_Reverse_POCO_Generator
             if (path == null || !File.Exists(path))
                 return;
 
-            var text          = File.ReadAllText(path);
+            var text          = TemplateFileUpdater.Read(item, path);
             var settings      = new TemplateSettingsFile(text);
             var configuration = TemplateConfiguration.ReadFrom(settings, Path.GetFileNameWithoutExtension(path) + "DbContext");
 

@@ -35,7 +35,7 @@ namespace EntityFramework_Reverse_POCO_Generator
             if (path == null || !File.Exists(path))
                 return;
 
-            var template = File.ReadAllText(path);
+            var template = TemplateFileUpdater.Read(item, path);
 
             string error;
             var catalogue = SettingsMetadataFiles.For(template, out error);
