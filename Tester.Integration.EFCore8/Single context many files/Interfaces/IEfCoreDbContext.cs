@@ -106,6 +106,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Interfaces
         DbSet<Stafford_Boo> Stafford_Boos { get; set; } // Boo
         DbSet<Stafford_ComputedColumn> Stafford_ComputedColumns { get; set; } // ComputedColumns
         DbSet<Stafford_Foo> Stafford_Foos { get; set; } // Foo
+        DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         DbSet<Synonyms_Child> Synonyms_Children { get; set; } // Child
         DbSet<Synonyms_Parent> Synonyms_Parents { get; set; } // Parent
         DbSet<TableA> TableAs { get; set; } // TableA

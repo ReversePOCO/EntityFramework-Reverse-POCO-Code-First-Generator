@@ -95,6 +95,7 @@ Entities\SorterScannerGroup.cs
 Entities\Stafford_Boo.cs
 Entities\Stafford_ComputedColumn.cs
 Entities\Stafford_Foo.cs
+Entities\StringDefaultEscaping.cs
 Entities\Synonyms_Child.cs
 Entities\Synonyms_Parent.cs
 Entities\TableA.cs
@@ -215,6 +216,7 @@ Configuration\SorterScannerGroupConfiguration.cs
 Configuration\Stafford_BooConfiguration.cs
 Configuration\Stafford_ComputedColumnConfiguration.cs
 Configuration\Stafford_FooConfiguration.cs
+Configuration\StringDefaultEscapingConfiguration.cs
 Configuration\Synonyms_ChildConfiguration.cs
 Configuration\Synonyms_ParentConfiguration.cs
 Configuration\TableAConfiguration.cs

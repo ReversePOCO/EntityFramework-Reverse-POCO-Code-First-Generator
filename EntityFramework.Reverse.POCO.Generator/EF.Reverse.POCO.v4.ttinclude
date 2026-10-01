@@ -1692,10 +1692,13 @@
                 case "system.timespan":
                 case "datetimeoffset":
                 case "system.datetimeoffset":
-                    if (Default.First() != '"')
+                    // MySQL reports a literal unquoted, so there a leading double quote is part of the value
+                    if (Default.First() != '"' || (Settings.DatabaseType == DatabaseType.MySql && !quotedLiteral.Success))
                         Default = string.Format("\"{0}\"", Default);
                     if (Default.Contains('\\') || Default.Contains('\r') || Default.Contains('\n'))
-                        Default = "@" + Default;
+                        Default = string.Format("@\"{0}\"",
+                            Default.Substring(1, Default.Length - 2)
+                                .Replace("\"", "\"\"")); // #893 A verbatim literal escapes a double quote by doubling it
                     else
                         Default = string.Format("\"{0}\"",
                             Default.Substring(1, Default.Length - 2)

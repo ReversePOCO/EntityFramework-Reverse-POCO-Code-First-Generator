@@ -128,6 +128,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
         public DbSet<Stafford_Boo> Stafford_Boos { get; set; } // Boo
         public DbSet<Stafford_ComputedColumn> Stafford_ComputedColumns { get; set; } // ComputedColumns
         public DbSet<Stafford_Foo> Stafford_Foos { get; set; } // Foo
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         public DbSet<Synonyms_Child> Synonyms_Children { get; set; } // Child
         public DbSet<Synonyms_Parent> Synonyms_Parents { get; set; } // Parent
         public DbSet<TableA> TableAs { get; set; } // TableA
@@ -277,6 +278,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
             modelBuilder.ApplyConfiguration(new Stafford_BooConfiguration());
             modelBuilder.ApplyConfiguration(new Stafford_ComputedColumnConfiguration());
             modelBuilder.ApplyConfiguration(new Stafford_FooConfiguration());
+            modelBuilder.ApplyConfiguration(new StringDefaultEscapingConfiguration());
             modelBuilder.ApplyConfiguration(new Synonyms_ChildConfiguration());
             modelBuilder.ApplyConfiguration(new Synonyms_ParentConfiguration());
             modelBuilder.ApplyConfiguration(new TableAConfiguration());

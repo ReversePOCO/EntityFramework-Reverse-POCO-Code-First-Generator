@@ -100,6 +100,18 @@ CREATE TABLE ExpressionDefault
     NumberText  TEXT     NOT NULL DEFAULT 0
 );
 
+-- String defaults that need escaping in C# (#281, #893). A backslash makes the default a verbatim literal, where a
+-- double quote is escaped by doubling it, and the generator left those quotes single, so a default with both did
+-- not compile. The same table is in every dialect's EfrpgTest; the doubled quotes here are C#, not SQL.
+CREATE TABLE StringDefaultEscaping
+(
+    Id                 INTEGER PRIMARY KEY,
+    QuoteOnly          TEXT NOT NULL DEFAULT 'say ""hi""',
+    BackslashOnly      TEXT NOT NULL DEFAULT 'C:\Temp',
+    BackslashAndQuote  TEXT NOT NULL DEFAULT 'C:\Temp\say ""hi""',
+    QuoteThenBackslash TEXT NOT NULL DEFAULT '""quoted""\'
+);
+
 CREATE INDEX [IX_Efrpg] ON [Efrpg] ([TEXT3]);
 CREATE INDEX [IX_Efrpg_Composite] ON [Efrpg] (int1, int2);
 

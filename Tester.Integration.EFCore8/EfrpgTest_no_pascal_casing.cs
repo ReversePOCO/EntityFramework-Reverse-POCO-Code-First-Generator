@@ -110,6 +110,7 @@ namespace V8_Efrpg_Test
         DbSet<Stafford_Boo> Stafford_Boos { get; set; } // Boo
         DbSet<Stafford_ComputedColumn> Stafford_ComputedColumns { get; set; } // ComputedColumns
         DbSet<Stafford_Foo> Stafford_Foos { get; set; } // Foo
+        DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         DbSet<Synonyms_Child> Synonyms_Children { get; set; } // Child
         DbSet<Synonyms_Parent> Synonyms_Parents { get; set; } // Parent
         DbSet<table_with_multiple_period> table_with_multiple_periods { get; set; } // table.with.multiple.periods
@@ -490,6 +491,7 @@ namespace V8_Efrpg_Test
         public DbSet<Stafford_Boo> Stafford_Boos { get; set; } // Boo
         public DbSet<Stafford_ComputedColumn> Stafford_ComputedColumns { get; set; } // ComputedColumns
         public DbSet<Stafford_Foo> Stafford_Foos { get; set; } // Foo
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         public DbSet<Synonyms_Child> Synonyms_Children { get; set; } // Child
         public DbSet<Synonyms_Parent> Synonyms_Parents { get; set; } // Parent
         public DbSet<table_with_multiple_period> table_with_multiple_periods { get; set; } // table.with.multiple.periods
@@ -638,6 +640,7 @@ namespace V8_Efrpg_Test
             modelBuilder.ApplyConfiguration(new Stafford_BooConfiguration());
             modelBuilder.ApplyConfiguration(new Stafford_ComputedColumnConfiguration());
             modelBuilder.ApplyConfiguration(new Stafford_FooConfiguration());
+            modelBuilder.ApplyConfiguration(new StringDefaultEscapingConfiguration());
             modelBuilder.ApplyConfiguration(new Synonyms_ChildConfiguration());
             modelBuilder.ApplyConfiguration(new Synonyms_ParentConfiguration());
             modelBuilder.ApplyConfiguration(new table_with_multiple_periodConfiguration());
@@ -3872,6 +3875,24 @@ namespace V8_Efrpg_Test
         public virtual Stafford_Boo Stafford_Boo { get; set; } // FK_Foo_Boo
     }
 
+    // StringDefaultEscaping
+    public class StringDefaultEscaping
+    {
+        public int Id { get; set; } // Id (Primary key)
+        public string QuoteOnly { get; set; } // QuoteOnly (length: 30)
+        public string BackslashOnly { get; set; } // BackslashOnly (length: 30)
+        public string BackslashAndQuote { get; set; } // BackslashAndQuote (length: 30)
+        public string QuoteThenBackslash { get; set; } // QuoteThenBackslash (length: 30)
+
+        public StringDefaultEscaping()
+        {
+            QuoteOnly = "say \"hi\"";
+            BackslashOnly = @"C:\Temp";
+            BackslashAndQuote = @"C:\Temp\say ""hi""";
+            QuoteThenBackslash = @"""quoted""\";
+        }
+    }
+
     // Child
     public class Synonyms_Child
     {
@@ -5685,6 +5706,22 @@ namespace V8_Efrpg_Test
 
             // Foreign keys
             builder.HasOne(a => a.Stafford_Boo).WithOne(b => b.Stafford_Foo).HasForeignKey<Stafford_Foo>(c => c.id).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_Foo_Boo");
+        }
+    }
+
+    // StringDefaultEscaping
+    public class StringDefaultEscapingConfiguration : IEntityTypeConfiguration<StringDefaultEscaping>
+    {
+        public void Configure(EntityTypeBuilder<StringDefaultEscaping> builder)
+        {
+            builder.ToTable("StringDefaultEscaping", "dbo");
+            builder.HasKey(x => x.Id).HasName("PK_StringDefaultEscaping").IsClustered();
+
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd().UseIdentityColumn();
+            builder.Property(x => x.QuoteOnly).HasColumnName(@"QuoteOnly").HasColumnType("varchar(30)").IsRequired().IsUnicode(false).HasMaxLength(30);
+            builder.Property(x => x.BackslashOnly).HasColumnName(@"BackslashOnly").HasColumnType("varchar(30)").IsRequired().IsUnicode(false).HasMaxLength(30);
+            builder.Property(x => x.BackslashAndQuote).HasColumnName(@"BackslashAndQuote").HasColumnType("varchar(30)").IsRequired().IsUnicode(false).HasMaxLength(30);
+            builder.Property(x => x.QuoteThenBackslash).HasColumnName(@"QuoteThenBackslash").HasColumnType("varchar(30)").IsRequired().IsUnicode(false).HasMaxLength(30);
         }
     }
 

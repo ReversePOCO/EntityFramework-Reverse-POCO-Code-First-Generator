@@ -2609,3 +2609,19 @@ CREATE TABLE dbo.ExpressionDefault
     CONSTRAINT [PK_ExpressionDefault] PRIMARY KEY CLUSTERED (Id)
 );
 GO
+
+-- #893 String defaults containing a backslash become a verbatim C# literal, where a double quote is escaped by
+-- doubling it rather than with \". The generator left the quotes single, so a default with both did not compile:
+-- BackslashAndQuote = @"C:\Temp\say "hi"";. Expected: QuoteOnly = "say \"hi\"", BackslashOnly = @"C:\Temp",
+-- BackslashAndQuote = @"C:\Temp\say ""hi""" and QuoteThenBackslash = @"""quoted""\". QuoteOnly and BackslashOnly
+-- are the controls (#281, as are ColumnNameAndTypes.Obs to Obs3) and must not change. Every dialect has this table.
+CREATE TABLE dbo.StringDefaultEscaping
+(
+    Id                 INT         IDENTITY(1, 1) NOT NULL,
+    QuoteOnly          VARCHAR(30) NOT NULL CONSTRAINT [DF_StringDefaultEscaping_QuoteOnly] DEFAULT ('say "hi"'),
+    BackslashOnly      VARCHAR(30) NOT NULL CONSTRAINT [DF_StringDefaultEscaping_BackslashOnly] DEFAULT ('C:\Temp'),
+    BackslashAndQuote  VARCHAR(30) NOT NULL CONSTRAINT [DF_StringDefaultEscaping_BackslashAndQuote] DEFAULT ('C:\Temp\say "hi"'),
+    QuoteThenBackslash VARCHAR(30) NOT NULL CONSTRAINT [DF_StringDefaultEscaping_QuoteThenBackslash] DEFAULT ('"quoted"\'),
+    CONSTRAINT [PK_StringDefaultEscaping] PRIMARY KEY CLUSTERED (Id)
+);
+GO

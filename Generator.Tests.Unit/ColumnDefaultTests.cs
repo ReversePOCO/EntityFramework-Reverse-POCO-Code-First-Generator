@@ -201,6 +201,20 @@ namespace Generator.Tests.Unit
             });
         }
 
+        // A backslash or line break makes the default a verbatim literal, where a quote is escaped by doubling it
+        // rather than with a backslash. Issue #893: the quotes were left single, so the initialiser did not compile.
+
+        [TestCase("('C:\\Temp\\say \"hi\"')",  "@\"C:\\Temp\\say \"\"hi\"\"\"")]
+        [TestCase("('C:\\Temp')",               "@\"C:\\Temp\"")]
+        [TestCase("('line one\nline \"two\"')", "@\"line one\nline \"\"two\"\"\"")]
+        [TestCase("('say \"hi\"')",             "\"say \\\"hi\\\"\"")]
+        public void CleanUpDefault_StringWithQuotes_EscapesThemForTheLiteralItBecomes(string reported, string expectedDefault)
+        {
+            var column = CleanUp(DatabaseType.SqlServer, "string", reported);
+
+            Assert.That(column.Default, Is.EqualTo(expectedDefault));
+        }
+
         // SQL Server functions with an exact C# equivalent keep it, as before. The equivalent has to be the whole
         // default: dateadd(day,30,sysutcdatetime()) merely contains one, and is covered above.
 
@@ -281,6 +295,19 @@ namespace Generator.Tests.Unit
             var column = CleanUp(DatabaseType.MySql, "string", "fallback", defaultIsExpression: false);
 
             Assert.That(column.Default, Is.EqualTo("\"fallback\""));
+        }
+
+        // MySQL reports a literal's value without its quotes, so a value that itself starts with a double quote must
+        // still be wrapped: there the quote is data, not the mark of a literal already converted to C#. Found by
+        // EfrpgTest's StringDefaultEscaping.QuoteThenBackslash, which came out as @"quoted""" - the value quoted".
+
+        [TestCase("\"quoted\"\\", "@\"\"\"quoted\"\"\\\"")]
+        [TestCase("\"quoted\"",   "\"\\\"quoted\\\"\"")]
+        public void CleanUpDefault_MySqlLiteralStartingWithADoubleQuote_KeepsTheQuote(string reported, string expectedDefault)
+        {
+            var column = CleanUp(DatabaseType.MySql, "string", reported, defaultIsExpression: false);
+
+            Assert.That(column.Default, Is.EqualTo(expectedDefault));
         }
 
         // A tool older than 1.2.0 sends no flag, so the text is all there is: a function call or a date keyword is

@@ -66,6 +66,7 @@ namespace Efrpg.PostgreSQL
         DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // principal_key_child
         DbSet<SequenceTest> SequenceTests { get; set; } // sequence_test
         DbSet<SerialTest> SerialTests { get; set; } // serial_test
+        DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // string_default_escaping
         DbSet<Student> Students { get; set; } // student
         DbSet<StudentCourse> StudentCourses { get; set; } // student_course
         DbSet<Truck> Trucks { get; set; } // truck
@@ -159,6 +160,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // principal_key_child
         public DbSet<SequenceTest> SequenceTests { get; set; } // sequence_test
         public DbSet<SerialTest> SerialTests { get; set; } // serial_test
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // string_default_escaping
         public DbSet<Student> Students { get; set; } // student
         public DbSet<StudentCourse> StudentCourses { get; set; } // student_course
         public DbSet<Truck> Trucks { get; set; } // truck
@@ -267,6 +269,7 @@ namespace Efrpg.PostgreSQL
             modelBuilder.Configurations.Add(new PrincipalKeyChildConfiguration());
             modelBuilder.Configurations.Add(new SequenceTestConfiguration());
             modelBuilder.Configurations.Add(new SerialTestConfiguration());
+            modelBuilder.Configurations.Add(new StringDefaultEscapingConfiguration());
             modelBuilder.Configurations.Add(new StudentConfiguration());
             modelBuilder.Configurations.Add(new StudentCourseConfiguration());
             modelBuilder.Configurations.Add(new TruckConfiguration());
@@ -359,6 +362,7 @@ namespace Efrpg.PostgreSQL
             modelBuilder.Configurations.Add(new PrincipalKeyChildConfiguration(schema));
             modelBuilder.Configurations.Add(new SequenceTestConfiguration(schema));
             modelBuilder.Configurations.Add(new SerialTestConfiguration(schema));
+            modelBuilder.Configurations.Add(new StringDefaultEscapingConfiguration(schema));
             modelBuilder.Configurations.Add(new StudentConfiguration(schema));
             modelBuilder.Configurations.Add(new StudentCourseConfiguration(schema));
             modelBuilder.Configurations.Add(new TruckConfiguration(schema));
@@ -536,6 +540,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // principal_key_child
         public DbSet<SequenceTest> SequenceTests { get; set; } // sequence_test
         public DbSet<SerialTest> SerialTests { get; set; } // serial_test
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // string_default_escaping
         public DbSet<Student> Students { get; set; } // student
         public DbSet<StudentCourse> StudentCourses { get; set; } // student_course
         public DbSet<Truck> Trucks { get; set; } // truck
@@ -584,6 +589,7 @@ namespace Efrpg.PostgreSQL
             PrincipalKeyChilds = new FakeDbSet<PrincipalKeyChild>("Id");
             SequenceTests = new FakeDbSet<SequenceTest>("Id");
             SerialTests = new FakeDbSet<SerialTest>("Id");
+            StringDefaultEscapings = new FakeDbSet<StringDefaultEscaping>("Id");
             Students = new FakeDbSet<Student>("StudentId");
             StudentCourses = new FakeDbSet<StudentCourse>("StudentId", "CourseId");
             Trucks = new FakeDbSet<Truck>("VehicleId", "Registration", "PayloadKg");
@@ -1568,6 +1574,27 @@ namespace Efrpg.PostgreSQL
         public string Description { get; set; } // description
     }
 
+    // string_default_escaping
+    /// <summary>
+    /// String defaults containing double quotes and backslashes
+    /// </summary>
+    public class StringDefaultEscaping
+    {
+        public int Id { get; set; } // id (Primary key)
+        public string QuoteOnly { get; set; } // quote_only (length: 30)
+        public string BackslashOnly { get; set; } // backslash_only (length: 30)
+        public string BackslashAndQuote { get; set; } // backslash_and_quote (length: 30)
+        public string QuoteThenBackslash { get; set; } // quote_then_backslash (length: 30)
+
+        public StringDefaultEscaping()
+        {
+            QuoteOnly = "say \"hi\"";
+            BackslashOnly = @"C:\Temp";
+            BackslashAndQuote = @"C:\Temp\say ""hi""";
+            QuoteThenBackslash = @"""quoted""\";
+        }
+    }
+
     // student
     public class Student
     {
@@ -2401,6 +2428,27 @@ namespace Efrpg.PostgreSQL
             Property(x => x.BigId).HasColumnName(@"big_id").HasColumnType("bigint").IsRequired().HasDatabaseGeneratedOption(DatabaseGeneratedOption.Identity);
             Property(x => x.SmallId).HasColumnName(@"small_id").HasColumnType("smallint").IsRequired().HasDatabaseGeneratedOption(DatabaseGeneratedOption.Identity);
             Property(x => x.Description).HasColumnName(@"description").HasColumnType("text").IsOptional().IsUnicode(false);
+        }
+    }
+
+    // string_default_escaping
+    public class StringDefaultEscapingConfiguration : EntityTypeConfiguration<StringDefaultEscaping>
+    {
+        public StringDefaultEscapingConfiguration()
+            : this("public")
+        {
+        }
+
+        public StringDefaultEscapingConfiguration(string schema)
+        {
+            ToTable("string_default_escaping", schema);
+            HasKey(x => x.Id);
+
+            Property(x => x.Id).HasColumnName(@"id").HasColumnType("integer").IsRequired().HasDatabaseGeneratedOption(DatabaseGeneratedOption.Identity);
+            Property(x => x.QuoteOnly).HasColumnName(@"quote_only").HasColumnType("character varying").IsRequired().HasMaxLength(30);
+            Property(x => x.BackslashOnly).HasColumnName(@"backslash_only").HasColumnType("character varying").IsRequired().HasMaxLength(30);
+            Property(x => x.BackslashAndQuote).HasColumnName(@"backslash_and_quote").HasColumnType("character varying").IsRequired().HasMaxLength(30);
+            Property(x => x.QuoteThenBackslash).HasColumnName(@"quote_then_backslash").HasColumnType("character varying").IsRequired().HasMaxLength(30);
         }
     }
 

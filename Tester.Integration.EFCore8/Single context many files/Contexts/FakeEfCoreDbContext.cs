@@ -108,6 +108,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
         public DbSet<Stafford_Boo> Stafford_Boos { get; set; } = null!; // Boo
         public DbSet<Stafford_ComputedColumn> Stafford_ComputedColumns { get; set; } = null!; // ComputedColumns
         public DbSet<Stafford_Foo> Stafford_Foos { get; set; } = null!; // Foo
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } = null!; // StringDefaultEscaping
         public DbSet<Synonyms_Child> Synonyms_Children { get; set; } = null!; // Child
         public DbSet<Synonyms_Parent> Synonyms_Parents { get; set; } = null!; // Parent
         public DbSet<TableA> TableAs { get; set; } = null!; // TableA
@@ -233,6 +234,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
             Stafford_Boos = new FakeDbSet<Stafford_Boo>("Id");
             Stafford_ComputedColumns = new FakeDbSet<Stafford_ComputedColumn>("Id");
             Stafford_Foos = new FakeDbSet<Stafford_Foo>("Id");
+            StringDefaultEscapings = new FakeDbSet<StringDefaultEscaping>("Id");
             Synonyms_Children = new FakeDbSet<Synonyms_Child>("ChildId");
             Synonyms_Parents = new FakeDbSet<Synonyms_Parent>("ParentId");
             TableAs = new FakeDbSet<TableA>("TableAId");

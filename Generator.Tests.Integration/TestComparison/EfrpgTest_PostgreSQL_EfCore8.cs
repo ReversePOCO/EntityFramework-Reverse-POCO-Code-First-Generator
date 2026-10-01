@@ -69,6 +69,7 @@ namespace Efrpg.PostgreSQL
         DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // principal_key_child
         DbSet<SequenceTest> SequenceTests { get; set; } // sequence_test
         DbSet<SerialTest> SerialTests { get; set; } // serial_test
+        DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // string_default_escaping
         DbSet<Student> Students { get; set; } // student
         DbSet<StudentCourse> StudentCourses { get; set; } // student_course
         DbSet<Truck> Trucks { get; set; } // truck
@@ -197,6 +198,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // principal_key_child
         public DbSet<SequenceTest> SequenceTests { get; set; } // sequence_test
         public DbSet<SerialTest> SerialTests { get; set; } // serial_test
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // string_default_escaping
         public DbSet<Student> Students { get; set; } // student
         public DbSet<StudentCourse> StudentCourses { get; set; } // student_course
         public DbSet<Truck> Trucks { get; set; } // truck
@@ -265,6 +267,7 @@ namespace Efrpg.PostgreSQL
             modelBuilder.ApplyConfiguration(new PrincipalKeyChildConfiguration());
             modelBuilder.ApplyConfiguration(new SequenceTestConfiguration());
             modelBuilder.ApplyConfiguration(new SerialTestConfiguration());
+            modelBuilder.ApplyConfiguration(new StringDefaultEscapingConfiguration());
             modelBuilder.ApplyConfiguration(new StudentConfiguration());
             modelBuilder.ApplyConfiguration(new StudentCourseConfiguration());
             modelBuilder.ApplyConfiguration(new TruckConfiguration());
@@ -475,6 +478,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } = null!; // principal_key_child
         public DbSet<SequenceTest> SequenceTests { get; set; } = null!; // sequence_test
         public DbSet<SerialTest> SerialTests { get; set; } = null!; // serial_test
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } = null!; // string_default_escaping
         public DbSet<Student> Students { get; set; } = null!; // student
         public DbSet<StudentCourse> StudentCourses { get; set; } = null!; // student_course
         public DbSet<Truck> Trucks { get; set; } = null!; // truck
@@ -524,6 +528,7 @@ namespace Efrpg.PostgreSQL
             PrincipalKeyChilds = new FakeDbSet<PrincipalKeyChild>("Id");
             SequenceTests = new FakeDbSet<SequenceTest>("Id");
             SerialTests = new FakeDbSet<SerialTest>("Id");
+            StringDefaultEscapings = new FakeDbSet<StringDefaultEscaping>("Id");
             Students = new FakeDbSet<Student>("StudentId");
             StudentCourses = new FakeDbSet<StudentCourse>("StudentId", "CourseId");
             Trucks = new FakeDbSet<Truck>("VehicleId", "Registration", "PayloadKg");
@@ -2092,6 +2097,27 @@ namespace Efrpg.PostgreSQL
         public string Description { get; set; } // description
     }
 
+    // string_default_escaping
+    /// <summary>
+    /// String defaults containing double quotes and backslashes
+    /// </summary>
+    public class StringDefaultEscaping
+    {
+        public int Id { get; set; } // id (Primary key)
+        public string QuoteOnly { get; set; } // quote_only (length: 30)
+        public string BackslashOnly { get; set; } // backslash_only (length: 30)
+        public string BackslashAndQuote { get; set; } // backslash_and_quote (length: 30)
+        public string QuoteThenBackslash { get; set; } // quote_then_backslash (length: 30)
+
+        public StringDefaultEscaping()
+        {
+            QuoteOnly = "say \"hi\"";
+            BackslashOnly = @"C:\Temp";
+            BackslashAndQuote = @"C:\Temp\say ""hi""";
+            QuoteThenBackslash = @"""quoted""\";
+        }
+    }
+
     // student
     public class Student
     {
@@ -2789,6 +2815,22 @@ namespace Efrpg.PostgreSQL
             builder.Property(x => x.BigId).HasColumnName(@"big_id").HasColumnType("bigint").IsRequired().ValueGeneratedOnAdd().UseIdentityColumn();
             builder.Property(x => x.SmallId).HasColumnName(@"small_id").HasColumnType("smallint").IsRequired().ValueGeneratedOnAdd().UseIdentityColumn();
             builder.Property(x => x.Description).HasColumnName(@"description").HasColumnType("text").IsRequired(false).IsUnicode(false);
+        }
+    }
+
+    // string_default_escaping
+    public class StringDefaultEscapingConfiguration : IEntityTypeConfiguration<StringDefaultEscaping>
+    {
+        public void Configure(EntityTypeBuilder<StringDefaultEscaping> builder)
+        {
+            builder.ToTable("string_default_escaping", "public", t => t.HasComment(@"String defaults containing double quotes and backslashes"));
+            builder.HasKey(x => x.Id).HasName("string_default_escaping_pkey");
+
+            builder.Property(x => x.Id).HasColumnName(@"id").HasColumnType("integer").IsRequired().ValueGeneratedOnAdd().UseIdentityColumn();
+            builder.Property(x => x.QuoteOnly).HasColumnName(@"quote_only").HasColumnType("character varying(30)").IsRequired().HasMaxLength(30);
+            builder.Property(x => x.BackslashOnly).HasColumnName(@"backslash_only").HasColumnType("character varying(30)").IsRequired().HasMaxLength(30);
+            builder.Property(x => x.BackslashAndQuote).HasColumnName(@"backslash_and_quote").HasColumnType("character varying(30)").IsRequired().HasMaxLength(30);
+            builder.Property(x => x.QuoteThenBackslash).HasColumnName(@"quote_then_backslash").HasColumnType("character varying(30)").IsRequired().HasMaxLength(30);
         }
     }
 

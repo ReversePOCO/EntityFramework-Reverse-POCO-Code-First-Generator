@@ -197,6 +197,24 @@ CREATE TABLE public.expression_default
 
 COMMENT ON TABLE public.expression_default IS 'Expression defaults, and literals that must not be mistaken for them';
 
+-- ---------------------------------------------------------------------------------------------------------
+-- String defaults that need escaping in C# (#281, #893). A backslash makes the default a verbatim literal,
+-- where a double quote is escaped by doubling it rather than with \", and the generator left those quotes
+-- single, so a default with both did not compile. Expected: quote_only = "say \"hi\"", backslash_only =
+-- @"C:\Temp", backslash_and_quote = @"C:\Temp\say ""hi""" and quote_then_backslash = @"""quoted""\".
+-- standard_conforming_strings is on, so the backslashes below are literal.
+-- ---------------------------------------------------------------------------------------------------------
+CREATE TABLE public.string_default_escaping
+(
+    id                   serial PRIMARY KEY,
+    quote_only           varchar(30) NOT NULL DEFAULT 'say "hi"',
+    backslash_only       varchar(30) NOT NULL DEFAULT 'C:\Temp',
+    backslash_and_quote  varchar(30) NOT NULL DEFAULT 'C:\Temp\say "hi"',
+    quote_then_backslash varchar(30) NOT NULL DEFAULT '"quoted"\'
+);
+
+COMMENT ON TABLE public.string_default_escaping IS 'String defaults containing double quotes and backslashes';
+
 
 -- ---------------------------------------------------------------------------------------------------------
 -- Keys. Composite primary key, composite foreign key (the pairing of which is what the pg_constraint

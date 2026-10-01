@@ -117,6 +117,7 @@ namespace Efrpg.V3TestE1Da
         DbSet<Stafford_Boo> Stafford_Boos { get; set; } // Boo
         DbSet<Stafford_ComputedColumn> Stafford_ComputedColumns { get; set; } // ComputedColumns
         DbSet<Stafford_Foo> Stafford_Foos { get; set; } // Foo
+        DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         DbSet<Synonyms_Child> Synonyms_Children { get; set; } // Child
         DbSet<Synonyms_Parent> Synonyms_Parents { get; set; } // Parent
         DbSet<TableA> TableAs { get; set; } // TableA
@@ -463,6 +464,7 @@ namespace Efrpg.V3TestE1Da
         public DbSet<Stafford_Boo> Stafford_Boos { get; set; } // Boo
         public DbSet<Stafford_ComputedColumn> Stafford_ComputedColumns { get; set; } // ComputedColumns
         public DbSet<Stafford_Foo> Stafford_Foos { get; set; } // Foo
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         public DbSet<Synonyms_Child> Synonyms_Children { get; set; } // Child
         public DbSet<Synonyms_Parent> Synonyms_Parents { get; set; } // Parent
         public DbSet<TableA> TableAs { get; set; } // TableA
@@ -647,6 +649,7 @@ namespace Efrpg.V3TestE1Da
             modelBuilder.Configurations.Add(new Stafford_BooConfiguration());
             modelBuilder.Configurations.Add(new Stafford_ComputedColumnConfiguration());
             modelBuilder.Configurations.Add(new Stafford_FooConfiguration());
+            modelBuilder.Configurations.Add(new StringDefaultEscapingConfiguration());
             modelBuilder.Configurations.Add(new Synonyms_ChildConfiguration());
             modelBuilder.Configurations.Add(new Synonyms_ParentConfiguration());
             modelBuilder.Configurations.Add(new TableAConfiguration());
@@ -946,6 +949,7 @@ namespace Efrpg.V3TestE1Da
             modelBuilder.Configurations.Add(new Stafford_BooConfiguration(schema));
             modelBuilder.Configurations.Add(new Stafford_ComputedColumnConfiguration(schema));
             modelBuilder.Configurations.Add(new Stafford_FooConfiguration(schema));
+            modelBuilder.Configurations.Add(new StringDefaultEscapingConfiguration(schema));
             modelBuilder.Configurations.Add(new Synonyms_ChildConfiguration(schema));
             modelBuilder.Configurations.Add(new Synonyms_ParentConfiguration(schema));
             modelBuilder.Configurations.Add(new TableAConfiguration(schema));
@@ -2737,6 +2741,7 @@ namespace Efrpg.V3TestE1Da
         public DbSet<Stafford_Boo> Stafford_Boos { get; set; } // Boo
         public DbSet<Stafford_ComputedColumn> Stafford_ComputedColumns { get; set; } // ComputedColumns
         public DbSet<Stafford_Foo> Stafford_Foos { get; set; } // Foo
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         public DbSet<Synonyms_Child> Synonyms_Children { get; set; } // Child
         public DbSet<Synonyms_Parent> Synonyms_Parents { get; set; } // Parent
         public DbSet<TableA> TableAs { get; set; } // TableA
@@ -2860,6 +2865,7 @@ namespace Efrpg.V3TestE1Da
             Stafford_Boos = new FakeDbSet<Stafford_Boo>("Id");
             Stafford_ComputedColumns = new FakeDbSet<Stafford_ComputedColumn>("Id");
             Stafford_Foos = new FakeDbSet<Stafford_Foo>("Id");
+            StringDefaultEscapings = new FakeDbSet<StringDefaultEscaping>("Id");
             Synonyms_Children = new FakeDbSet<Synonyms_Child>("ChildId");
             Synonyms_Parents = new FakeDbSet<Synonyms_Parent>("ParentId");
             TableAs = new FakeDbSet<TableA>("TableAId");
@@ -6438,6 +6444,48 @@ namespace Efrpg.V3TestE1Da
         public virtual Stafford_Boo Stafford_Boo { get; set; } // FK_Foo_Boo
     }
 
+    // StringDefaultEscaping
+    [Table("StringDefaultEscaping", Schema = "dbo")]
+    public class StringDefaultEscaping
+    {
+        [Key, Column(Order = 1)]
+        [Required]
+        [Display(Name = "Id")]
+        public int Id { get; set; } // Id (Primary key)
+
+        [MaxLength(30)]
+        [StringLength(30)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Quote only")]
+        public string QuoteOnly { get; set; } // QuoteOnly (length: 30)
+
+        [MaxLength(30)]
+        [StringLength(30)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Backslash only")]
+        public string BackslashOnly { get; set; } // BackslashOnly (length: 30)
+
+        [MaxLength(30)]
+        [StringLength(30)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Backslash and quote")]
+        public string BackslashAndQuote { get; set; } // BackslashAndQuote (length: 30)
+
+        [MaxLength(30)]
+        [StringLength(30)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Quote then backslash")]
+        public string QuoteThenBackslash { get; set; } // QuoteThenBackslash (length: 30)
+
+        public StringDefaultEscaping()
+        {
+            QuoteOnly = "say \"hi\"";
+            BackslashOnly = @"C:\Temp";
+            BackslashAndQuote = @"C:\Temp\say ""hi""";
+            QuoteThenBackslash = @"""quoted""\";
+        }
+    }
+
     // Child
     [Table("Child", Schema = "Synonyms")]
     public class Synonyms_Child
@@ -8915,6 +8963,26 @@ namespace Efrpg.V3TestE1Da
 
             // Foreign keys
             HasRequired(a => a.Stafford_Boo).WithOptional(b => b.Stafford_Foo).WillCascadeOnDelete(false); // FK_Foo_Boo
+        }
+    }
+
+    // StringDefaultEscaping
+    public class StringDefaultEscapingConfiguration : EntityTypeConfiguration<StringDefaultEscaping>
+    {
+        public StringDefaultEscapingConfiguration()
+            : this("dbo")
+        {
+        }
+
+        public StringDefaultEscapingConfiguration(string schema)
+        {
+            HasKey(x => x.Id);
+
+            Property(x => x.Id).HasColumnName(@"Id").IsRequired().HasDatabaseGeneratedOption(DatabaseGeneratedOption.Identity);
+            Property(x => x.QuoteOnly).HasColumnName(@"QuoteOnly").IsRequired().IsUnicode(false).HasMaxLength(30);
+            Property(x => x.BackslashOnly).HasColumnName(@"BackslashOnly").IsRequired().IsUnicode(false).HasMaxLength(30);
+            Property(x => x.BackslashAndQuote).HasColumnName(@"BackslashAndQuote").IsRequired().IsUnicode(false).HasMaxLength(30);
+            Property(x => x.QuoteThenBackslash).HasColumnName(@"QuoteThenBackslash").IsRequired().IsUnicode(false).HasMaxLength(30);
         }
     }
 

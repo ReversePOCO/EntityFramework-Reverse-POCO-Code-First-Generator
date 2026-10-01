@@ -60,6 +60,7 @@ namespace Efrpg.Oracle
         DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // PRINCIPAL_KEY_CHILD
         DbSet<SpacedTableName> SpacedTableNames { get; set; } // Spaced Table Name
         DbSet<Status> Status { get; set; } // STATUS
+        DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // STRING_DEFAULT_ESCAPING
         DbSet<Student> Students { get; set; } // STUDENT
         DbSet<StudentCourse> StudentCourses { get; set; } // STUDENT_COURSE
         DbSet<UnenforcedChild> UnenforcedChilds { get; set; } // UNENFORCED_CHILD
@@ -176,6 +177,7 @@ namespace Efrpg.Oracle
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // PRINCIPAL_KEY_CHILD
         public DbSet<SpacedTableName> SpacedTableNames { get; set; } // Spaced Table Name
         public DbSet<Status> Status { get; set; } // STATUS
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // STRING_DEFAULT_ESCAPING
         public DbSet<Student> Students { get; set; } // STUDENT
         public DbSet<StudentCourse> StudentCourses { get; set; } // STUDENT_COURSE
         public DbSet<UnenforcedChild> UnenforcedChilds { get; set; } // UNENFORCED_CHILD
@@ -235,6 +237,7 @@ namespace Efrpg.Oracle
             modelBuilder.ApplyConfiguration(new PrincipalKeyChildConfiguration());
             modelBuilder.ApplyConfiguration(new SpacedTableNameConfiguration());
             modelBuilder.ApplyConfiguration(new StatusConfiguration());
+            modelBuilder.ApplyConfiguration(new StringDefaultEscapingConfiguration());
             modelBuilder.ApplyConfiguration(new StudentConfiguration());
             modelBuilder.ApplyConfiguration(new StudentCourseConfiguration());
             modelBuilder.ApplyConfiguration(new UnenforcedChildConfiguration());
@@ -416,6 +419,7 @@ namespace Efrpg.Oracle
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } = null!; // PRINCIPAL_KEY_CHILD
         public DbSet<SpacedTableName> SpacedTableNames { get; set; } = null!; // Spaced Table Name
         public DbSet<Status> Status { get; set; } = null!; // STATUS
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } = null!; // STRING_DEFAULT_ESCAPING
         public DbSet<Student> Students { get; set; } = null!; // STUDENT
         public DbSet<StudentCourse> StudentCourses { get; set; } = null!; // STUDENT_COURSE
         public DbSet<UnenforcedChild> UnenforcedChilds { get; set; } = null!; // UNENFORCED_CHILD
@@ -456,6 +460,7 @@ namespace Efrpg.Oracle
             PrincipalKeyChilds = new FakeDbSet<PrincipalKeyChild>("Id");
             SpacedTableNames = new FakeDbSet<SpacedTableName>("SpacedTableName_");
             Status = new FakeDbSet<Status>("Id");
+            StringDefaultEscapings = new FakeDbSet<StringDefaultEscaping>("Id");
             Students = new FakeDbSet<Student>("StudentId");
             StudentCourses = new FakeDbSet<StudentCourse>("StudentId", "CourseId");
             UnenforcedChilds = new FakeDbSet<UnenforcedChild>("Id");
@@ -1849,6 +1854,27 @@ namespace Efrpg.Oracle
         public string Name { get; set; } = null!; // NAME (length: 10)
     }
 
+    // STRING_DEFAULT_ESCAPING
+    /// <summary>
+    /// String defaults containing double quotes and backslashes
+    /// </summary>
+    public class StringDefaultEscaping
+    {
+        public decimal Id { get; set; } // ID (Primary key)
+        public string QuoteOnly { get; set; } // QUOTE_ONLY (length: 30)
+        public string BackslashOnly { get; set; } // BACKSLASH_ONLY (length: 30)
+        public string BackslashAndQuote { get; set; } // BACKSLASH_AND_QUOTE (length: 30)
+        public string QuoteThenBackslash { get; set; } // QUOTE_THEN_BACKSLASH (length: 30)
+
+        public StringDefaultEscaping()
+        {
+            QuoteOnly = "say \"hi\"";
+            BackslashOnly = @"C:\Temp";
+            BackslashAndQuote = @"C:\Temp\say ""hi""";
+            QuoteThenBackslash = @"""quoted""\";
+        }
+    }
+
     // STUDENT
     public class Student
     {
@@ -2399,6 +2425,22 @@ namespace Efrpg.Oracle
 
             builder.Property(x => x.Id).HasColumnName(@"ID").HasColumnType("number(10)").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.Name).HasColumnName(@"NAME").HasColumnType("varchar2(10)").IsRequired().HasMaxLength(10);
+        }
+    }
+
+    // STRING_DEFAULT_ESCAPING
+    public class StringDefaultEscapingConfiguration : IEntityTypeConfiguration<StringDefaultEscaping>
+    {
+        public void Configure(EntityTypeBuilder<StringDefaultEscaping> builder)
+        {
+            builder.ToTable("STRING_DEFAULT_ESCAPING", "EFRPGTEST", t => t.HasComment(@"String defaults containing double quotes and backslashes"));
+            builder.HasKey(x => x.Id).HasName("PK_STRING_DEFAULT_ESCAPING");
+
+            builder.Property(x => x.Id).HasColumnName(@"ID").HasColumnType("number").IsRequired().ValueGeneratedOnAdd();
+            builder.Property(x => x.QuoteOnly).HasColumnName(@"QUOTE_ONLY").HasColumnType("varchar2(30)").IsRequired().HasMaxLength(30);
+            builder.Property(x => x.BackslashOnly).HasColumnName(@"BACKSLASH_ONLY").HasColumnType("varchar2(30)").IsRequired().HasMaxLength(30);
+            builder.Property(x => x.BackslashAndQuote).HasColumnName(@"BACKSLASH_AND_QUOTE").HasColumnType("varchar2(30)").IsRequired().HasMaxLength(30);
+            builder.Property(x => x.QuoteThenBackslash).HasColumnName(@"QUOTE_THEN_BACKSLASH").HasColumnType("varchar2(30)").IsRequired().HasMaxLength(30);
         }
     }
 

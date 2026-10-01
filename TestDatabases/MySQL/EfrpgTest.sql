@@ -107,6 +107,23 @@ CREATE TABLE ExpressionDefault
 ) COMMENT = 'Expression defaults, and literals that must not be mistaken for them';
 
 -- ---------------------------------------------------------------------------------------------------------
+-- String defaults that need escaping in C# (#281, #893). A backslash makes the default a verbatim literal,
+-- where a double quote is escaped by doubling it rather than with \", and the generator left those quotes
+-- single, so a default with both did not compile. Expected: QuoteOnly = "say \"hi\"", BackslashOnly =
+-- @"C:\Temp", BackslashAndQuote = @"C:\Temp\say ""hi""" and QuoteThenBackslash = @"""quoted""\".
+-- MySQL string literals take backslash escapes, hence the doubling below, and COLUMN_DEFAULT reports the value
+-- unquoted, so QuoteThenBackslash arrives starting with a double quote.
+-- ---------------------------------------------------------------------------------------------------------
+CREATE TABLE StringDefaultEscaping
+(
+    Id                 INT AUTO_INCREMENT PRIMARY KEY,
+    QuoteOnly          VARCHAR(30)     NOT NULL DEFAULT 'say "hi"',
+    BackslashOnly      VARCHAR(30)     NOT NULL DEFAULT 'C:\\Temp',
+    BackslashAndQuote  VARCHAR(30)     NOT NULL DEFAULT 'C:\\Temp\\say "hi"',
+    QuoteThenBackslash VARCHAR(30)     NOT NULL DEFAULT '"quoted"\\'
+) COMMENT = 'String defaults containing double quotes and backslashes';
+
+-- ---------------------------------------------------------------------------------------------------------
 -- Names chosen to break naive generators: spaces, reserved words in both SQL and C#, a leading digit,
 -- non-ASCII, and a column with the same name as its table.
 -- ---------------------------------------------------------------------------------------------------------

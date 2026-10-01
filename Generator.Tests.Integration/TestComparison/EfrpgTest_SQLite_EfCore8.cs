@@ -34,6 +34,7 @@ namespace Efrpg.SQLite
         DbSet<Efrpg> Efrpgs { get; set; } // Efrpg
         DbSet<EfrpgItem> EfrpgItems { get; set; } // EfrpgItems
         DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
+        DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         DbSet<ThisIsAView> ThisIsAViews { get; set; } // ThisIsAView
 
         int SaveChanges();
@@ -104,6 +105,7 @@ namespace Efrpg.SQLite
         public DbSet<Efrpg> Efrpgs { get; set; } // Efrpg
         public DbSet<EfrpgItem> EfrpgItems { get; set; } // EfrpgItems
         public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } // ExpressionDefault
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         public DbSet<ThisIsAView> ThisIsAViews { get; set; } // ThisIsAView
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -131,6 +133,7 @@ namespace Efrpg.SQLite
             modelBuilder.ApplyConfiguration(new EfrpgConfiguration());
             modelBuilder.ApplyConfiguration(new EfrpgItemConfiguration());
             modelBuilder.ApplyConfiguration(new ExpressionDefaultConfiguration());
+            modelBuilder.ApplyConfiguration(new StringDefaultEscapingConfiguration());
             modelBuilder.ApplyConfiguration(new ThisIsAViewConfiguration());
 
             modelBuilder.Entity<Efrpg>().ToTable(tb => tb.HasTrigger("efrpg_trigger"));
@@ -183,6 +186,7 @@ namespace Efrpg.SQLite
         public DbSet<Efrpg> Efrpgs { get; set; } = null!; // Efrpg
         public DbSet<EfrpgItem> EfrpgItems { get; set; } = null!; // EfrpgItems
         public DbSet<ExpressionDefault> ExpressionDefaults { get; set; } = null!; // ExpressionDefault
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } = null!; // StringDefaultEscaping
         public DbSet<ThisIsAView> ThisIsAViews { get; set; } = null!; // ThisIsAView
 
         public FakeMyDbContext()
@@ -193,6 +197,7 @@ namespace Efrpg.SQLite
             Efrpgs = new FakeDbSet<Efrpg>("Id");
             EfrpgItems = new FakeDbSet<EfrpgItem>("Id");
             ExpressionDefaults = new FakeDbSet<ExpressionDefault>("Id");
+            StringDefaultEscapings = new FakeDbSet<StringDefaultEscaping>("Id");
             ThisIsAViews = new FakeDbSet<ThisIsAView>();
 
         }
@@ -1202,6 +1207,24 @@ namespace Efrpg.SQLite
         }
     }
 
+    // StringDefaultEscaping
+    public class StringDefaultEscaping
+    {
+        public long Id { get; set; } // Id (Primary key)
+        public string QuoteOnly { get; set; } // QuoteOnly
+        public string BackslashOnly { get; set; } // BackslashOnly
+        public string BackslashAndQuote { get; set; } // BackslashAndQuote
+        public string QuoteThenBackslash { get; set; } // QuoteThenBackslash
+
+        public StringDefaultEscaping()
+        {
+            QuoteOnly = "say \"hi\"";
+            BackslashOnly = @"C:\Temp";
+            BackslashAndQuote = @"C:\Temp\say ""hi""";
+            QuoteThenBackslash = @"""quoted""\";
+        }
+    }
+
     // ThisIsAView
     public class ThisIsAView
     {
@@ -1296,6 +1319,22 @@ namespace Efrpg.SQLite
             builder.Property(x => x.DueAt).HasColumnName(@"DueAt").HasColumnType("datetime").IsRequired(false).HasDefaultValueSql(@"datetime('now', '+30 days')");
             builder.Property(x => x.LiteralText).HasColumnName(@"LiteralText").HasColumnType("text").IsRequired().IsUnicode(false);
             builder.Property(x => x.NumberText).HasColumnName(@"NumberText").HasColumnType("text").IsRequired().IsUnicode(false);
+        }
+    }
+
+    // StringDefaultEscaping
+    public class StringDefaultEscapingConfiguration : IEntityTypeConfiguration<StringDefaultEscaping>
+    {
+        public void Configure(EntityTypeBuilder<StringDefaultEscaping> builder)
+        {
+            builder.ToTable("StringDefaultEscaping", "main");
+            builder.HasKey(x => x.Id);
+
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("integer").IsRequired().ValueGeneratedOnAdd();
+            builder.Property(x => x.QuoteOnly).HasColumnName(@"QuoteOnly").HasColumnType("text").IsRequired().IsUnicode(false);
+            builder.Property(x => x.BackslashOnly).HasColumnName(@"BackslashOnly").HasColumnType("text").IsRequired().IsUnicode(false);
+            builder.Property(x => x.BackslashAndQuote).HasColumnName(@"BackslashAndQuote").HasColumnType("text").IsRequired().IsUnicode(false);
+            builder.Property(x => x.QuoteThenBackslash).HasColumnName(@"QuoteThenBackslash").HasColumnType("text").IsRequired().IsUnicode(false);
         }
     }
 

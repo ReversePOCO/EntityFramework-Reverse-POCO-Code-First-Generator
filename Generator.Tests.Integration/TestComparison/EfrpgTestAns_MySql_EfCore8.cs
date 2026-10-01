@@ -50,6 +50,7 @@ namespace Efrpg.MySql
         DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // PrincipalKeyChild
         DbSet<SpacedTableName> SpacedTableNames { get; set; } // Spaced Table Name
         DbSet<Status> Status { get; set; } // Status
+        DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         DbSet<Student> Students { get; set; } // Student
         DbSet<StudentCourse> StudentCourses { get; set; } // StudentCourse
 
@@ -156,6 +157,7 @@ namespace Efrpg.MySql
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // PrincipalKeyChild
         public DbSet<SpacedTableName> SpacedTableNames { get; set; } // Spaced Table Name
         public DbSet<Status> Status { get; set; } // Status
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         public DbSet<Student> Students { get; set; } // Student
         public DbSet<StudentCourse> StudentCourses { get; set; } // StudentCourse
 
@@ -201,6 +203,7 @@ namespace Efrpg.MySql
             modelBuilder.ApplyConfiguration(new PrincipalKeyChildConfiguration());
             modelBuilder.ApplyConfiguration(new SpacedTableNameConfiguration());
             modelBuilder.ApplyConfiguration(new StatusConfiguration());
+            modelBuilder.ApplyConfiguration(new StringDefaultEscapingConfiguration());
             modelBuilder.ApplyConfiguration(new StudentConfiguration());
             modelBuilder.ApplyConfiguration(new StudentCourseConfiguration());
 
@@ -413,6 +416,7 @@ namespace Efrpg.MySql
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } = null!; // PrincipalKeyChild
         public DbSet<SpacedTableName> SpacedTableNames { get; set; } = null!; // Spaced Table Name
         public DbSet<Status> Status { get; set; } = null!; // Status
+        public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } = null!; // StringDefaultEscaping
         public DbSet<Student> Students { get; set; } = null!; // Student
         public DbSet<StudentCourse> StudentCourses { get; set; } = null!; // StudentCourse
 
@@ -441,6 +445,7 @@ namespace Efrpg.MySql
             PrincipalKeyChilds = new FakeDbSet<PrincipalKeyChild>("Id");
             SpacedTableNames = new FakeDbSet<SpacedTableName>("Id");
             Status = new FakeDbSet<Status>("Id");
+            StringDefaultEscapings = new FakeDbSet<StringDefaultEscaping>("Id");
             Students = new FakeDbSet<Student>("Id");
             StudentCourses = new FakeDbSet<StudentCourse>("StudentId", "CourseId");
 
@@ -1862,6 +1867,27 @@ namespace Efrpg.MySql
         public string Name { get; set; } = null!; // Name (length: 10)
     }
 
+    // StringDefaultEscaping
+    /// <summary>
+    /// String defaults containing double quotes and backslashes
+    /// </summary>
+    public class StringDefaultEscaping
+    {
+        public int Id { get; set; } // Id (Primary key)
+        public string QuoteOnly { get; set; } // QuoteOnly (length: 30)
+        public string BackslashOnly { get; set; } // BackslashOnly (length: 30)
+        public string BackslashAndQuote { get; set; } // BackslashAndQuote (length: 30)
+        public string QuoteThenBackslash { get; set; } // QuoteThenBackslash (length: 30)
+
+        public StringDefaultEscaping()
+        {
+            QuoteOnly = "say \"hi\"";
+            BackslashOnly = @"C:\Temp";
+            BackslashAndQuote = @"C:\Temp\say ""hi""";
+            QuoteThenBackslash = @"""quoted""\";
+        }
+    }
+
     // Student
     public class Student
     {
@@ -2277,6 +2303,22 @@ namespace Efrpg.MySql
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.Name).HasColumnName(@"Name").HasColumnType("varchar(10)").IsRequired().IsUnicode(false).HasMaxLength(10);
+        }
+    }
+
+    // StringDefaultEscaping
+    public class StringDefaultEscapingConfiguration : IEntityTypeConfiguration<StringDefaultEscaping>
+    {
+        public void Configure(EntityTypeBuilder<StringDefaultEscaping> builder)
+        {
+            builder.ToTable("StringDefaultEscaping", "EfrpgTest", t => t.HasComment(@"String defaults containing double quotes and backslashes"));
+            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
+            builder.Property(x => x.QuoteOnly).HasColumnName(@"QuoteOnly").HasColumnType("varchar(30)").IsRequired().IsUnicode(false).HasMaxLength(30);
+            builder.Property(x => x.BackslashOnly).HasColumnName(@"BackslashOnly").HasColumnType("varchar(30)").IsRequired().IsUnicode(false).HasMaxLength(30);
+            builder.Property(x => x.BackslashAndQuote).HasColumnName(@"BackslashAndQuote").HasColumnType("varchar(30)").IsRequired().IsUnicode(false).HasMaxLength(30);
+            builder.Property(x => x.QuoteThenBackslash).HasColumnName(@"QuoteThenBackslash").HasColumnType("varchar(30)").IsRequired().IsUnicode(false).HasMaxLength(30);
         }
     }
 
