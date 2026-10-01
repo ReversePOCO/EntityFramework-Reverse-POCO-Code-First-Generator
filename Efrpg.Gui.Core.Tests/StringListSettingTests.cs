@@ -41,6 +41,7 @@ namespace Efrpg.Gui.Tests
         [TestCase("new string[] { @\"C:\\x\", \"q\\\"uote\" }", StringListForm.Array, new[] { "C:\\x", "q\"uote" })]
         [TestCase("new string[]\r\n    {\r\n        // \"JsonIgnore\" // an example\r\n    }", StringListForm.Array, new string[0])]
         [TestCase("new string[]\r\n    {\r\n        \"JsonIgnore\", /* old */ \"Other\"\r\n    }", StringListForm.Array, new[] { "JsonIgnore", "Other" })]
+        [TestCase("new List<string>\r\n{\r\n    \"A\", // \"B\" is retired\r\n    /* \"C\", */ \"D\"\r\n}", StringListForm.List, new[] { "A", "D" })]
         public void TryReadStringList_ReadsEverySpellingTheTemplatesUse(string rhs, StringListForm expectedForm, string[] expected)
         {
             IReadOnlyList<string> items;
@@ -48,6 +49,25 @@ namespace Efrpg.Gui.Tests
 
             Assert.That(SettingValue.TryReadStringList(rhs, out items, out form), Is.True);
             Assert.That(form, Is.EqualTo(expectedForm));
+            Assert.That(items, Is.EqualTo(expected));
+        }
+
+        /// <summary>
+        ///     Issue #890. Comments were stripped before literals were recognised, so a // or /* inside a value - a
+        ///     URL, a pattern - was taken for a comment, and the value lost text or failed to read at all.
+        /// </summary>
+        [TestCase("new List<string> { \"a/*b*/c\" }", new[] { "a/*b*/c" })]
+        [TestCase("new List<string> { \"https://example.com\" }", new[] { "https://example.com" })]
+        [TestCase("new List<string> { @\"\\\\server//share\" }", new[] { "\\\\server//share" })]
+        [TestCase("new List<string> { @\"a \"\" /* b\", \"c */ d\" }", new[] { "a \" /* b", "c */ d" })]
+        public void TryReadStringList_CommentDelimitersInsideALiteral_AreKeptAsText(string rhs, string[] expected)
+        {
+            IReadOnlyList<string> items;
+            StringListForm form;
+
+            var read = SettingValue.TryReadStringList(rhs, out items, out form);
+
+            Assert.That(read, Is.True);
             Assert.That(items, Is.EqualTo(expected));
         }
 

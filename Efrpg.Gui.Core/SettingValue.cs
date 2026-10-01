@@ -160,10 +160,14 @@ namespace Efrpg.Gui
                    indent + "}";
         }
 
+        // Literals are matched alongside the comments and put back untouched, so a // or /* inside a value - a URL, a
+        // pattern - is not taken for a comment. Whichever starts first wins, which is the C# rule.
+        private static readonly Regex LiteralOrComment = new Regex(
+            @"(?<literal>@""(?:[^""]|"""")*""|""(?:[^""\\]|\\.)*"")|/\*.*?\*/|//[^\r\n]*", RegexOptions.Singleline);
+
         private static string StripComments(string text)
         {
-            text = Regex.Replace(text, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
-            return Regex.Replace(text, @"//[^\r\n]*", string.Empty);
+            return LiteralOrComment.Replace(text, match => match.Groups["literal"].Success ? match.Value : string.Empty);
         }
 
         public static bool TryReadBoolean(string rhs, out bool value)
