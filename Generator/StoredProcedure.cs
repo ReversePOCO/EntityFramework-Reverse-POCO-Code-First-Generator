@@ -72,7 +72,7 @@ namespace Efrpg
 
         public void MergeModelsIfAllSame()
         {
-            if (Settings.MergeMultipleStoredProcModelsIfAllSame && ReturnModels.Count < 2)
+            if (!Settings.MergeMultipleStoredProcModelsIfAllSame || ReturnModels.Count < 2)
                 return;
 
             if (ReturnModels.Select(x => x.Count).Distinct().Count() != 1)

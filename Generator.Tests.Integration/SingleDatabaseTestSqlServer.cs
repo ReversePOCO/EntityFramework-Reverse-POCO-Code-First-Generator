@@ -141,6 +141,31 @@ namespace Generator.Tests.Integration
 
         [Test]
         [NonParallelizable]
+        [TestCase(TemplateType.EfCore8, ".V9IdenticalMerged",    true)]
+        [TestCase(TemplateType.EfCore8, ".V9IdenticalNotMerged", false)]
+        public void IdenticalResultSets(TemplateType templateType, string singleDbContextSubNamespace, bool merge)
+        {
+            // Arrange - #892 SP returning two result sets of the same shape. Turning the merge off must keep both.
+            SetupSqlServer("EfrpgTest", "MyDbContext", "EfrpgTestDbContext", templateType);
+            Settings.GenerateSeparateFiles = false;
+            Settings.UseMappingTables = false;
+            Settings.AddUnitTestingDbContext = false;
+            Settings.MergeMultipleStoredProcModelsIfAllSame = merge;
+
+            FilterSettings.SchemaFilters.Add(new RegexIncludeFilter("dbo.*"));
+            FilterSettings.TableFilters.Add(new RegexIncludeFilter("^$")); // exclude all tables and views
+            FilterSettings.StoredProcedureFilters.Add(new RegexIncludeFilter("^stp_multiple_identical_results$"));
+
+            // Act
+            var filename = "IdenticalResultSets" + (merge ? "Merged" : "NotMerged");
+            Run(filename, singleDbContextSubNamespace, null);
+
+            // Assert
+            CompareAgainstTestComparison(filename);
+        }
+
+        [Test]
+        [NonParallelizable]
         [TestCase(TemplateType.EfCore8, ".V9SpacedTvf",   false)]
         [TestCase(TemplateType.EfCore8, ".V9SpacedTvfDa", true)]
         public void SpacedColumnTableValuedFunction(TemplateType templateType, string singleDbContextSubNamespace, bool useDataAnnotations)

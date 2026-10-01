@@ -42,6 +42,7 @@ namespace Generator.Tests.Integration
             Settings.UseDataAnnotations = false;
             Settings.TrimCharFields = false;
             Settings.GenerateSeparateFiles = false;
+            Settings.MergeMultipleStoredProcModelsIfAllSame = true;
 
             Settings.AddOwnedEntityMappings = delegate (List<OwnedEntityMapping> mappings)
             {

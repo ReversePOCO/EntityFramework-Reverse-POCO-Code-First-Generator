@@ -186,6 +186,12 @@
     <None Include="TestComparison\SpacedColumnSp_SqlServer_EfCore8.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestComparison\IdenticalResultSetsMerged_SqlServer_EfCore8.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestComparison\IdenticalResultSetsNotMerged_SqlServer_EfCore8.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestComparison\EfrpgTestDa_SqlServer_Ef6.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

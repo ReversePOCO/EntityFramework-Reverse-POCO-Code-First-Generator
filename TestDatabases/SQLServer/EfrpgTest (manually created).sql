@@ -1954,6 +1954,8 @@ BEGIN
 	SELECT Id,Name FROM Colour;
 END;
 GO
+-- Two result sets of the same shape. Merged into one return model by default; with
+-- MergeMultipleStoredProcModelsIfAllSame = false both must be kept (#892).
 CREATE PROCEDURE [dbo].[stp_multiple_identical_results] (@someVar INT)
 AS
 	IF(@someVar > 5) BEGIN

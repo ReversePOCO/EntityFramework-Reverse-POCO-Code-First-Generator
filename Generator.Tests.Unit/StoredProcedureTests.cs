@@ -643,6 +643,7 @@ AS BEGIN SELECT 1 END";
             Settings.AllowNullStrings                    = false;
             Settings.NullableReverseNavigationProperties = false;
             Settings.NullableShortHand                   = true;
+            Settings.MergeMultipleStoredProcModelsIfAllSame = true;
         }
 
         [Description("Issue #885 - DB-nullable string return columns become string? under NRT; NOT NULL columns keep = null!")]
@@ -970,6 +971,26 @@ AS BEGIN SELECT 1 END";
 
             // Assert
             Assert.IsFalse(mappings.Any(x => x.Contains("IsRequired")));
+        }
+
+        [Description("Issue #892 - identical result sets merge only when the setting asks for it")]
+        [TestCase(true,  1)]
+        [TestCase(false, 2)]
+        public void MergeModelsIfAllSame_TwoIdenticalModels_MergesOnlyWhenEnabled(bool merge, int expectedModels)
+        {
+            // Arrange
+            Settings.MergeMultipleStoredProcModelsIfAllSame = merge;
+            _sut.ReturnModels = new List<List<DataColumn>>
+            {
+                new List<DataColumn> { new DataColumn("Id", typeof(int)), new DataColumn("Name", typeof(string)) },
+                new List<DataColumn> { new DataColumn("Id", typeof(int)), new DataColumn("Name", typeof(string)) }
+            };
+
+            // Act
+            _sut.MergeModelsIfAllSame();
+
+            // Assert
+            Assert.That(_sut.ReturnModels, Has.Count.EqualTo(expectedModels));
         }
 
         private List<StoredProcedureParameter> GetParams()
