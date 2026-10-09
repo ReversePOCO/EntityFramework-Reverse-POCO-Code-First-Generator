@@ -85,5 +85,33 @@ namespace Generator.Tests.Integration
             // Assert
             CompareAgainstTestComparison(filename);
         }
+
+        /// <summary>
+        ///     Reverse engineers EFRPGSYN, an application schema that owns one table and reaches the rest of its model
+        ///     through private synonyms for another schema's tables, view, procedure, function and package. Loaded by
+        ///     TestDatabases/Oracle/EfrpgTestSynonyms.sql, whose header lists what each synonym is there to prove.
+        ///     The tool-side assertions on the raw rows live in the Efrpg repository's OracleSynonymIntegrationTests;
+        ///     this golden pins what the template makes of them - entities named after the synonyms, and navigation
+        ///     properties between them.
+        /// </summary>
+        [Test]
+        [NonParallelizable]
+        [Ignore("Golden not yet baselined: run once against the efrpg-oracle container, review the output, add " +
+                "TestComparison\\EfrpgTestSyn_Oracle_EfCore8.cs to the project, then remove this attribute.")]
+        public void Synonyms()
+        {
+            // Arrange
+            SetupOracle("efrpgsyn", "MyDbContext", "MyDbContext", TemplateType.EfCore8);
+            Settings.Enumerations = new List<EnumerationSettings>(); // SetupOracle's STATUS lookup lives in EFRPGTEST
+            Settings.GenerateSeparateFiles = false;
+            Settings.UseMappingTables = false;
+
+            // Act
+            const string filename = "EfrpgTestSyn";
+            Run(filename, ".Oracle", null);
+
+            // Assert
+            CompareAgainstTestComparison(filename);
+        }
     }
 }

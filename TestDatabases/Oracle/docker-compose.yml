@@ -4,11 +4,11 @@
 #   docker compose up -d          # first start takes a few minutes: it creates the database, then loads northwind.sql
 #   docker compose logs -f        # watch for "DATABASE IS READY TO USE!"
 #   docker compose down           # stop, keeping the data volume
-#   docker compose down -v        # stop and throw the database away, so the next up re-seeds from northwind.sql
+#   docker compose down -v        # stop and throw the database away, so the next up re-seeds from the scripts below
 #
-# northwind.sql in this folder is loaded automatically on the very first start only. It does the
-# ALTER SESSION SET CONTAINER=pdb1 itself and creates its own schema owner, which is why this file asks
-# for a pluggable database named pdb1 and why the scripts run as SYSDBA.
+# northwind.sql and then EfrpgTestSynonyms.sql in this folder are loaded automatically on the very first start
+# only. Each does the ALTER SESSION SET CONTAINER=pdb1 itself and creates its own schema owners, which is why
+# this file asks for a pluggable database named pdb1 and why the scripts run as SYSDBA.
 #
 # EfrpgTest.sql is NOT seeded by this file. It is written to run as its own schema owner, which has to exist
 # first, so create the user once and then load it by hand:
@@ -21,9 +21,15 @@
 # SingleDatabaseTestOracle in Generator.Tests.Integration reverse engineers that schema, so its goldens will
 # not match until it is loaded.
 #
+# EfrpgTestSynonyms.sql creates two more users, EFRPGSYNOWNER and EFRPGSYN, for the synonym tests. It runs as
+# SYSDBA and drops both users first, so to reload it on an existing volume:
+#
+#   docker exec -i efrpg-oracle sqlplus -s sys/efrpgTest123@localhost:1521/pdb1 as sysdba < EfrpgTestSynonyms.sql
+#
 # Connection strings for Settings.ConnectionString and for `efrpg --database Oracle`:
 #   User Id=efrpg;Password=abc123;Data Source=localhost:1521/pdb1;        # northwind
 #   User Id=efrpgtest;Password=abc123;Data Source=localhost:1521/pdb1;    # EfrpgTest
+#   User Id=efrpgsyn;Password=abc123;Data Source=localhost:1521/pdb1;     # EfrpgTestSynonyms (the synonym user)
 #
 # Set EFRPG_ORACLE_PORT if 1521 is already taken on your machine.
 
@@ -42,6 +48,7 @@ services:
       - efrpg-oracle-data:/opt/oracle/oradata
       # Read only: the seed script belongs to the repo and nothing in the container should rewrite it.
       - ./northwind.sql:/container-entrypoint-initdb.d/01-northwind.sql:ro
+      - ./EfrpgTestSynonyms.sql:/container-entrypoint-initdb.d/02-EfrpgTestSynonyms.sql:ro
     healthcheck:
       test: ["CMD", "/opt/oracle/healthcheck.sh"]
       interval: 10s

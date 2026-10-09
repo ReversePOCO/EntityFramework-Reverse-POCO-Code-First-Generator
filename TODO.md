@@ -34,9 +34,24 @@ MySQL treats a database as a schema, so connecting to `EfrpgTest` makes the `Efr
 script contains the scenario but the test does not actually exercise it. Fixing it means teaching the MySQL
 reader to read across databases.
 
-## 5. Oracle synonyms are not read
+## 5. Oracle synonyms: what the first pass leaves out
 
-`SynonymsSQL` deliberately returns an empty string. `ALL_SYNONYMS` is there whenever someone asks for it.
+Private synonyms in the current schema are read (#886): tables, views, standalone routines and packages, with
+foreign keys remapped to the synonym names on both sides. Deliberately not covered yet:
+
+- **Database link synonyms** (`ALL_SYNONYMS.DB_LINK` set). Their target lives in a remote dictionary, the analogue
+  of SQL Server's cross-database case. Filtered out rather than guessed at.
+- **PUBLIC synonyms.** A schema can see thousands; they would swamp the model. Needs an opt-in setting, which means
+  a request flag and a `SchemaVersion` bump.
+- **Synonyms for synonyms.** Only one level is resolved; a chain finds no columns and drops out.
+- **Indexes and comments behind a synonym.** `IndexSQL` and `ExtendedPropertySQL` still read the current schema
+  only, so a synonym's entity has its target's keys but no `HasIndex` and no comments.
+- **Triggers behind a cross-schema synonym.** `ALL_TRIGGERS` shows only triggers on the user's own tables (or all of
+  them with CREATE ANY TRIGGER), so `SynonymTriggerName` is filled for same-schema synonyms only. That is Oracle's
+  visibility rule, not a reader gap.
+- **One relationship per constraint.** When a constraint is reachable under more than one pair of names - a table
+  with two synonyms, or a synonym for a table in the current schema - the reader keeps one pair (real table first,
+  then alphabetical), because the generator groups foreign key rows on schema plus constraint name.
 
 ## 7. `MySqlToCSharp` maps `tinyint` to `SByte`
 
