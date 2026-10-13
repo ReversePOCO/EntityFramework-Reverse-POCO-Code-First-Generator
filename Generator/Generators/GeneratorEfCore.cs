@@ -129,7 +129,7 @@ namespace Efrpg.Generators
 
                 if (Column.ExcludedHasColumnType.Contains(c.SqlPropertyType))
                     excludedHasColumnType = string.Format(" // .HasColumnType(\"{0}{1}\") was excluded", c.SqlPropertyType, columnTypeParameters);
-                else
+                else if (!IsPomeloGuidStoreTypeOnAString(c))
                     sb.AppendFormat(".HasColumnType(\"{0}{1}\")", c.SqlPropertyType, columnTypeParameters);
 
                 if (Settings.IsEfCore8Plus())
@@ -222,6 +222,14 @@ namespace Efrpg.Generators
             }
         }
 
+        // char(36) is Pomelo's store type for Guid. Named on a string property it finds no string mapping, EF falls
+        // through to its primitive collection path and building the model throws a NullReferenceException.
+        // IsFixedLength and the length, which are emitted anyway, give the same char(36) column.
+        private static bool IsPomeloGuidStoreTypeOnAString(Column c)
+        {
+            return Settings.DatabaseType == DatabaseType.MySql && c.PropertyType == "string" && c.SqlPropertyType == "char" && c.MaxLength == 36;
+        }
+
         public override string PrimaryKeyModelBuilder(Table t)
         {
             var IsEfCore8Plus = Settings.IsEfCore8Plus();
@@ -252,7 +260,8 @@ namespace Efrpg.Generators
             sb.Append(indexName);
             sb.Append("\")");
 
-            if (indexesForName.All(x => x.IsClustered))
+            // IsClustered() lives in the SQL Server provider. MySQL reports every InnoDB primary key as clustered.
+            if (Settings.DatabaseType == DatabaseType.SqlServer && indexesForName.All(x => x.IsClustered))
                 sb.Append(IsEfCore8Plus ? ".IsClustered()" : ".ForSqlServerIsClustered()");
 
             sb.Append(";");
@@ -316,7 +325,7 @@ namespace Efrpg.Generators
                 if (indexesForName.All(x => x.IsUnique) || indexesForName.All(x => x.IsUniqueConstraint))
                     sb.Append(".IsUnique()");
 
-                if (indexesForName.All(x => x.IsClustered))
+                if (Settings.DatabaseType == DatabaseType.SqlServer && indexesForName.All(x => x.IsClustered))
                     sb.Append(isEfCore8Plus ? ".IsClustered()" : ".ForSqlServerIsClustered()");
 
                 var filterDefinition = indexesForName.Select(x => x.FilterDefinition).FirstOrDefault(x => !string.IsNullOrEmpty(x));

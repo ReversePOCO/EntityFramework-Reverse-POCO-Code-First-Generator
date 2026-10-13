@@ -44,6 +44,8 @@ namespace Efrpg.Generators
 
             if (filter.IncludeStoredProcedures)
             {
+                // Every EXEC below is T-SQL. Any other provider gets its own call statement in all three places.
+                var returnsProcResult = StoredProcedure.ReturnsProcResult();
                 _storedProcs = filter.StoredProcs
                     .Where(s => s.IsStoredProcedure)
                     .OrderBy(x => x.NameHumanCase)
@@ -67,11 +69,15 @@ namespace Efrpg.Generators
                         sp.WriteStoredProcFunctionOverloadCall(),
                         sp.WriteStoredProcFunctionSetSqlParameters(false),
                         sp.WriteStoredProcFunctionSetSqlParameters(true),
-                        sp.ReturnModels.Count == 1
+                        !returnsProcResult
+                            ? sp.WriteStoredProcFunctionCallSql()
+                            : sp.ReturnModels.Count == 1
                             ? // exec
                             string.Format("EXEC @procResult = [{0}].[{1}] {2}", sp.Schema.DbName, sp.DbName, sp.WriteStoredProcFunctionSqlAtParams()).Trim()
                             : string.Format("[{0}].[{1}]", sp.Schema.DbName, sp.DbName),
-                        sp.ReturnModels.Count == 0
+                        !returnsProcResult
+                            ? sp.WriteStoredProcFunctionCallSql()
+                            : sp.ReturnModels.Count == 0
                             ? // Async exec
                             string.Format("EXEC @procResult = [{0}].[{1}] {2}", sp.Schema.DbName, sp.DbName, sp.WriteStoredProcFunctionSqlAtParams()).Trim()
                             : sp.ReturnModels.Count == 1
@@ -87,10 +93,19 @@ namespace Efrpg.Generators
                         sp.WriteStoredProcFunctionDeclareSqlParameter(false),
                         sp.Parameters.OrderBy(x => x.Ordinal).Select(sp.WriteStoredProcSqlParameterName).ToList(),
                         sp.ReturnModels.Count,
-                        string.Format("EXEC @procResult = [{0}].[{1}] {2}", sp.Schema.DbName, sp.DbName, sp.WriteStoredProcFunctionSqlAtParams()),
+                        !returnsProcResult
+                            ? sp.WriteStoredProcFunctionCallSql()
+                            : string.Format("EXEC @procResult = [{0}].[{1}] {2}", sp.Schema.DbName, sp.DbName, sp.WriteStoredProcFunctionSqlAtParams()),
                         !string.IsNullOrEmpty(sp.Error),
                         sp.Error ?? string.Empty
-                    ))
+                    )
+                    {
+                        HasProcResult = returnsProcResult,
+                        ExecutesAsCommand = sp.ExecutesAsStoredProcedureCommand(),
+                        CommandText = sp.WriteStoredProcFunctionQualifiedName(),
+                        CommandParameters = "new[] { " +
+                                            string.Join(", ", sp.Parameters.OrderBy(x => x.Ordinal).Select(sp.WriteStoredProcSqlParameterName)) + " }"
+                    })
                     .ToList();
             }
             else
@@ -129,7 +144,10 @@ namespace Efrpg.Generators
                         IsEfCore8Plus ? "Entity" : "Query",
                         IsEfCore8Plus ? ".HasNoKey()" : string.Empty,
                         !Settings.StoredProcedureReturnTypes.ContainsKey(tvf.NameHumanCase) && !Settings.StoredProcedureReturnTypes.ContainsKey(tvf.DbName)
-                    ))
+                    )
+                    {
+                        QualifiedName = tvf.WriteStoredProcFunctionQualifiedName()
+                    })
                     .ToList();
 
                 _tableValuedFunctionComplexTypes = filter.StoredProcs
@@ -168,7 +186,10 @@ namespace Efrpg.Generators
                         svf.WriteStoredProcFunctionParams(false, false),
                         svf.DbName,
                         svf.Schema.DbName
-                    ))
+                    )
+                    {
+                        DbFunctionArguments = svf.WriteDbFunctionArguments()
+                    })
                     .ToList();
             }
             else
@@ -428,6 +449,7 @@ namespace Efrpg.Generators
                 OnConfigurationUsesConnectionString = Settings.OnConfiguration == OnConfiguration.ConnectionString,
                 DefaultSchema = Settings.DefaultSchema,
                 UseDatabaseProvider = Settings.DatabaseProvider(),
+                NeedsServerVersion = Settings.DatabaseType == DatabaseType.MySql, // Pomelo's UseMySql has no overload without one
                 UseLazyLoadingProxies = Settings.UseLazyLoading && Settings.IsEfCore8Plus(),
                 SqlParameter = Settings.SqlParameter(),
                 SqlParameterValue = Settings.SqlParameterValue(),
@@ -446,6 +468,25 @@ namespace Efrpg.Generators
             AddCodeWithNullableContext(co, _template.DatabaseContext(), data);
 
             return co;
+        }
+
+        // The namespaces PostgreSQL's own column types live in. In one generated file the context's usings happened to
+        // cover NpgsqlTypes and System.Collections, but nothing imported PhysicalAddress's namespace, and a POCO in a
+        // file of its own had none of them.
+        private static List<string> ColumnTypeNamespaces(Table table)
+        {
+            var namespaces = new List<string>();
+            foreach (var propertyType in table.Columns.Where(x => !x.Hidden).Select(x => x.PropertyType ?? string.Empty))
+            {
+                if (propertyType.StartsWith("BitArray"))
+                    namespaces.Add("System.Collections");
+                else if (propertyType.StartsWith("PhysicalAddress"))
+                    namespaces.Add("System.Net.NetworkInformation");
+                else if (propertyType.StartsWith("Npgsql"))
+                    namespaces.Add("NpgsqlTypes");
+            }
+
+            return namespaces.Distinct().ToList();
         }
 
         private static string GetConnectionStringActions(bool hasSpatialTypes, bool hasHierarchyIdType)
@@ -630,6 +671,7 @@ namespace Efrpg.Generators
                 InsideClassBody = Settings.WriteInsideClassBody(table),
                 HasHierarchyId = table.Columns.Any(x => x.PropertyType.EndsWith("hierarchyid", StringComparison.InvariantCultureIgnoreCase)),
                 HasSqlVector = table.Columns.Any(x => x.PropertyType.StartsWith("SqlVector", StringComparison.InvariantCultureIgnoreCase)) && Settings.IsEfCore10Plus(),
+                ColumnTypeNamespaces = ColumnTypeNamespaces(table),
                 Columns = columnsQuery
                     .Where(x => !x.Hidden && !x.ExistsInBaseClass)
                     .Select((col, index) => new PocoColumnModel

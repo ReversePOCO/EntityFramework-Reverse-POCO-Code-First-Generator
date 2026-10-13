@@ -21,6 +21,7 @@ namespace Efrpg.Generators
         public string ModelBuilderCommand { get; }
         public string ModelBuilderPostCommand { get; }
         public bool IncludeModelBuilder { get; }
+        public string QualifiedName { get; set; } // tvf.WriteStoredProcFunctionQualifiedName()
         public List<string> ColumnMappings { get; set; } = new List<string>();
         public bool HasColumnMappings => ColumnMappings != null && ColumnMappings.Count > 0;
 

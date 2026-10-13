@@ -144,7 +144,6 @@ using {{this}};{{#newline}}
                 "System.Data.Entity.Infrastructure.Interception",
                 "System.Data.Entity.Infrastructure.Annotations",
                 "System.ComponentModel.DataAnnotations.Schema",
-                "System.Data.SqlClient",
                 "System.Data.SqlTypes",
                 "System.Threading.Tasks",
                 "System.Threading"
@@ -172,6 +171,9 @@ using {{this}};{{#newline}}
                 usings.Add("System.Collections.Generic");
                 usings.Add("System.Data.Entity.Validation");
             }
+
+            if (Settings.DatabaseType == DatabaseType.SqlServer)
+                usings.Add("System.Data.SqlClient");
 
             if (Settings.DatabaseType == DatabaseType.PostgreSQL)
             {
@@ -363,7 +365,11 @@ using {{this}};{{#newline}}
 {{#if SingleReturnModel}}
         var procResultData = Database.SqlQuery<{{WriteStoredProcReturnModelName}}>(""{{Exec}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrue}}).ToList();{{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
+{{#if HasProcResult}}
         procResult = (int) procResultParam.Value;{{#newline}}
+{{#else}}
+        procResult = 0;{{#newline}}
+{{/if}}
 {{#else}}
         var procResultData = new {{WriteStoredProcReturnModelName}}();{{#newline}}
         var cmd = Database.Connection.CreateCommand();{{#newline}}
@@ -401,11 +407,18 @@ using {{this}};{{#newline}}
 {{/if}}
     public int {{FunctionName}}({{WriteStoredProcFunctionParamsTrueFalse}}){{#newline}}
     {{{#newline}}
-{{WriteStoredProcFunctionDeclareSqlParameterTrue}}{{#newline}}
+{{WriteStoredProcFunctionDeclareSqlParameterTrue}}
+{{#if HasProcResult}}
+{{#newline}}
+{{/if}}
         Database.ExecuteSqlCommand(TransactionalBehavior.DoNotEnsureTransaction, ""{{ExecWithNoReturnModel}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrue}});{{#newline}}
 {{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
+{{#if HasProcResult}}
         return (int)procResultParam.Value;{{#newline}}
+{{#else}}
+        return 0;{{#newline}}
+{{/if}}
     }{{#newline}}
 {{/if}}{{#! if HasReturnModels }}
 {{#newline}}
@@ -416,10 +429,16 @@ using {{this}};{{#newline}}
     {{{#newline}}
 {{#if HasNoReturnModels}}
 {{WriteStoredProcFunctionDeclareSqlParameterTrue}}
+{{#if HasProcResult}}
 {{#newline}}
+{{/if}}
         await Database.ExecuteSqlCommandAsync(TransactionalBehavior.DoNotEnsureTransaction, ""{{AsyncExec}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrueToken}});{{#newline}}
 {{#newline}}
+{{#if HasProcResult}}
         return (int)procResultParam.Value;{{#newline}}
+{{#else}}
+        return 0;{{#newline}}
+{{/if}}
 {{#else}}
 {{WriteStoredProcFunctionDeclareSqlParameterFalse}}
 {{#if SingleReturnModel}}
@@ -529,7 +548,6 @@ using {{this}};{{#newline}}
                 "System.Data.Entity.Infrastructure",
                 "System.Data.Entity.Infrastructure.Interception",
                 "System.Data.Entity.Infrastructure.Annotations",
-                "System.Data.SqlClient",
                 "System.Data.Entity.Spatial",
                 "System.Data.SqlTypes",
                 "System.Threading.Tasks",
@@ -555,6 +573,9 @@ using {{this}};{{#newline}}
                 usings.Add("System.Collections.Generic");
                 usings.Add("System.Data.Entity.Validation");
             }
+
+            if (Settings.DatabaseType == DatabaseType.SqlServer)
+                usings.Add("System.Data.SqlClient");
 
             if (Settings.DatabaseType == DatabaseType.PostgreSQL)
             {

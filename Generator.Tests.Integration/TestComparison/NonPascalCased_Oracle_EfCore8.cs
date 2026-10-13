@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.EntityFrameworkCore.Storage;
+using Oracle.ManagedDataAccess.Client;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -63,6 +64,8 @@ namespace Efrpg.Oracle
         DbSet<STRING_DEFAULT_ESCAPING> STRING_DEFAULT_ESCAPINGs { get; set; } // STRING_DEFAULT_ESCAPING
         DbSet<STUDENT> STUDENTs { get; set; } // STUDENT
         DbSet<STUDENT_COURSE> STUDENT_COURSEs { get; set; } // STUDENT_COURSE
+        DbSet<SYN_ACTIVE_Child> SYN_ACTIVE_Children { get; set; } // SYN_ACTIVE_CHILDREN
+        DbSet<SYN_PARENT_COMPOSITE> SYN_PARENT_COMPOSITEs { get; set; } // SYN_PARENT_COMPOSITE
         DbSet<UNENFORCED_CHILD> UNENFORCED_Children { get; set; } // UNENFORCED_CHILD
         DbSet<UNENFORCED_PARENT> UNENFORCED_PARENTs { get; set; } // UNENFORCED_PARENT
 
@@ -111,20 +114,24 @@ namespace Efrpg.Oracle
         IQueryable<TResult> FromExpression<TResult> (Expression<Func<IQueryable<TResult>>> expression);
 
         // Stored Procedures
-        int COUNT_CHILDREN(decimal? pARENTKEYONE, ref decimal? rUNNINGTOTAL);
+        int COUNT_CHILDREN(decimal? pARENTKEYONE, out decimal? cHILDCOUNT, ref decimal? rUNNINGTOTAL);
         // COUNT_CHILDRENAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-        int GET_CHILDREN_BY_PARENT(decimal? pARENTKEYONE, decimal? pARENTKEYTWO);
+        int GET_CHILDREN_BY_PARENT(decimal? pARENTKEYONE, decimal? pARENTKEYTWO, out object rESULTS);
         // GET_CHILDREN_BY_PARENTAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
         int NO_PARAMETERS_PROC();
         Task<int> NO_PARAMETERS_PROCAsync(CancellationToken cancellationToken = default(CancellationToken));
+
+        int ORDER_PKG_TOUCH_PARENT(decimal? kEYONE, decimal? kEYTWO);
+        Task<int> ORDER_PKG_TOUCH_PARENTAsync(decimal? kEYONE, decimal? kEYTWO, CancellationToken cancellationToken = default(CancellationToken));
 
 
         // Scalar Valued Functions
         decimal IS_HIGH_VALUE(decimal? vALUE, decimal? tHRESHOLD); // EFRPGTEST.IS_HIGH_VALUE
         decimal LINE_TOTAL(decimal? qUANTITY, decimal? uNIT_PRICE); // EFRPGTEST.LINE_TOTAL
         decimal NO_PARAMETERS(); // EFRPGTEST.NO_PARAMETERS
+        decimal ORDER_PKG_DOUBLE_IT(decimal? n); // EFRPGTEST.ORDER_PKG.DOUBLE_IT
     }
 
     #endregion
@@ -180,6 +187,8 @@ namespace Efrpg.Oracle
         public DbSet<STRING_DEFAULT_ESCAPING> STRING_DEFAULT_ESCAPINGs { get; set; } // STRING_DEFAULT_ESCAPING
         public DbSet<STUDENT> STUDENTs { get; set; } // STUDENT
         public DbSet<STUDENT_COURSE> STUDENT_COURSEs { get; set; } // STUDENT_COURSE
+        public DbSet<SYN_ACTIVE_Child> SYN_ACTIVE_Children { get; set; } // SYN_ACTIVE_CHILDREN
+        public DbSet<SYN_PARENT_COMPOSITE> SYN_PARENT_COMPOSITEs { get; set; } // SYN_PARENT_COMPOSITE
         public DbSet<UNENFORCED_CHILD> UNENFORCED_Children { get; set; } // UNENFORCED_CHILD
         public DbSet<UNENFORCED_PARENT> UNENFORCED_PARENTs { get; set; } // UNENFORCED_PARENT
 
@@ -240,6 +249,8 @@ namespace Efrpg.Oracle
             modelBuilder.ApplyConfiguration(new STRING_DEFAULT_ESCAPINGConfiguration());
             modelBuilder.ApplyConfiguration(new STUDENTConfiguration());
             modelBuilder.ApplyConfiguration(new STUDENT_COURSEConfiguration());
+            modelBuilder.ApplyConfiguration(new SYN_ACTIVE_ChildConfiguration());
+            modelBuilder.ApplyConfiguration(new SYN_PARENT_COMPOSITEConfiguration());
             modelBuilder.ApplyConfiguration(new UNENFORCED_CHILDConfiguration());
             modelBuilder.ApplyConfiguration(new UNENFORCED_PARENTConfiguration());
 
@@ -252,20 +263,18 @@ namespace Efrpg.Oracle
 
 
         // Stored Procedures
-        public int COUNT_CHILDREN(decimal? pARENTKEYONE, ref decimal? rUNNINGTOTAL)
+        public int COUNT_CHILDREN(decimal? pARENTKEYONE, out decimal? cHILDCOUNT, ref decimal? rUNNINGTOTAL)
         {
-            var pARENTKEYONEParam = new OracleParameter { ParameterName = "PARENT_KEY_ONE", SqlDbType = SqlDbType.number, Direction = ParameterDirection.Input, Value = pARENTKEYONE.GetValueOrDefault() };
+            var pARENTKEYONEParam = new OracleParameter { ParameterName = "PARENT_KEY_ONE", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = pARENTKEYONE.GetValueOrDefault() };
             if (!pARENTKEYONE.HasValue)
                 pARENTKEYONEParam.Value = DBNull.Value;
 
-            var cHILDCOUNTParam = new OracleParameter { ParameterName = "CHILD_COUNT", SqlDbType = SqlDbType.number, Direction = ParameterDirection.Output };
-            var rUNNINGTOTALParam = new OracleParameter { ParameterName = "RUNNING_TOTAL", SqlDbType = SqlDbType.number, Direction = ParameterDirection.InputOutput, Value = rUNNINGTOTAL.GetValueOrDefault() };
+            var cHILDCOUNTParam = new OracleParameter { ParameterName = "CHILD_COUNT", DbType = DbType.Decimal, Direction = ParameterDirection.Output };
+            var rUNNINGTOTALParam = new OracleParameter { ParameterName = "RUNNING_TOTAL", DbType = DbType.Decimal, Direction = ParameterDirection.InputOutput, Value = rUNNINGTOTAL.GetValueOrDefault() };
             if (!rUNNINGTOTAL.HasValue)
                 rUNNINGTOTALParam.Value = DBNull.Value;
 
-            var procResultParam = new OracleParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
-
-            Database.ExecuteSqlRaw("EXEC @procResult = [EFRPGTEST].[COUNT_CHILDREN] PARENT_KEY_ONE, CHILD_COUNT OUTPUT, RUNNING_TOTAL OUTPUT", pARENTKEYONEParam, cHILDCOUNTParam, rUNNINGTOTALParam, procResultParam);
+            Database.ExecuteSqlRaw("BEGIN \"EFRPGTEST\".\"COUNT_CHILDREN\"(:PARENT_KEY_ONE, :CHILD_COUNT, :RUNNING_TOTAL); END;", pARENTKEYONEParam, cHILDCOUNTParam, rUNNINGTOTALParam);
 
             if (IsSqlParameterNull(cHILDCOUNTParam))
                 cHILDCOUNT = null;
@@ -277,52 +286,77 @@ namespace Efrpg.Oracle
             else
                 rUNNINGTOTAL = (decimal) rUNNINGTOTALParam.Value;
 
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         // COUNT_CHILDRENAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-        public int GET_CHILDREN_BY_PARENT(decimal? pARENTKEYONE = null, decimal? pARENTKEYTWO = null)
+        public int GET_CHILDREN_BY_PARENT(decimal? pARENTKEYONE, decimal? pARENTKEYTWO, out object rESULTS)
         {
-            var pARENTKEYONEParam = new OracleParameter { ParameterName = "PARENT_KEY_ONE", SqlDbType = SqlDbType.number, Direction = ParameterDirection.Input, Value = pARENTKEYONE.GetValueOrDefault() };
+            var pARENTKEYONEParam = new OracleParameter { ParameterName = "PARENT_KEY_ONE", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = pARENTKEYONE.GetValueOrDefault() };
             if (!pARENTKEYONE.HasValue)
                 pARENTKEYONEParam.Value = DBNull.Value;
 
-            var pARENTKEYTWOParam = new OracleParameter { ParameterName = "PARENT_KEY_TWO", SqlDbType = SqlDbType.number, Direction = ParameterDirection.Input, Value = pARENTKEYTWO.GetValueOrDefault() };
+            var pARENTKEYTWOParam = new OracleParameter { ParameterName = "PARENT_KEY_TWO", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = pARENTKEYTWO.GetValueOrDefault() };
             if (!pARENTKEYTWO.HasValue)
                 pARENTKEYTWOParam.Value = DBNull.Value;
 
-            var rESULTSParam = new OracleParameter { ParameterName = "RESULTS", SqlDbType = SqlDbType.ref cursor, Direction = ParameterDirection.Output };
-            var procResultParam = new OracleParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            var rESULTSParam = new OracleParameter { ParameterName = "RESULTS", OracleDbType = OracleDbType.RefCursor, Direction = ParameterDirection.Output };
 
-            Database.ExecuteSqlRaw("EXEC @procResult = [EFRPGTEST].[GET_CHILDREN_BY_PARENT] PARENT_KEY_ONE, PARENT_KEY_TWO, RESULTS OUTPUT", pARENTKEYONEParam, pARENTKEYTWOParam, rESULTSParam, procResultParam);
+            Database.ExecuteSqlRaw("BEGIN \"EFRPGTEST\".\"GET_CHILDREN_BY_PARENT\"(:PARENT_KEY_ONE, :PARENT_KEY_TWO, :RESULTS); END;", pARENTKEYONEParam, pARENTKEYTWOParam, rESULTSParam);
 
             if (IsSqlParameterNull(rESULTSParam))
-                rESULTS = default(string);
+                rESULTS = default(object);
             else
-                rESULTS = (string) rESULTSParam.Value;
+                rESULTS = (object) rESULTSParam.Value;
 
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         // GET_CHILDREN_BY_PARENTAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
         public int NO_PARAMETERS_PROC()
         {
-            var procResultParam = new OracleParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            Database.ExecuteSqlRaw("BEGIN \"EFRPGTEST\".\"NO_PARAMETERS_PROC\"(); END;");
 
-            Database.ExecuteSqlRaw("EXEC @procResult = [EFRPGTEST].[NO_PARAMETERS_PROC] ", procResultParam);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         public async Task<int> NO_PARAMETERS_PROCAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            var procResultParam = new OracleParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            await Database.ExecuteSqlRawAsync("BEGIN \"EFRPGTEST\".\"NO_PARAMETERS_PROC\"(); END;", cancellationToken);
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [EFRPGTEST].[NO_PARAMETERS_PROC]",  new[] {procResultParam}, cancellationToken);
+            return 0;
+        }
 
-            return (int)procResultParam.Value;
+        public int ORDER_PKG_TOUCH_PARENT(decimal? kEYONE = null, decimal? kEYTWO = null)
+        {
+            var kEYONEParam = new OracleParameter { ParameterName = "KEY_ONE", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = kEYONE.GetValueOrDefault() };
+            if (!kEYONE.HasValue)
+                kEYONEParam.Value = DBNull.Value;
+
+            var kEYTWOParam = new OracleParameter { ParameterName = "KEY_TWO", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = kEYTWO.GetValueOrDefault() };
+            if (!kEYTWO.HasValue)
+                kEYTWOParam.Value = DBNull.Value;
+
+            Database.ExecuteSqlRaw("BEGIN \"EFRPGTEST\".\"ORDER_PKG\".\"TOUCH_PARENT\"(:KEY_ONE, :KEY_TWO); END;", kEYONEParam, kEYTWOParam);
+
+            return 0;
+        }
+
+        public async Task<int> ORDER_PKG_TOUCH_PARENTAsync(decimal? kEYONE = null, decimal? kEYTWO = null, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var kEYONEParam = new OracleParameter { ParameterName = "KEY_ONE", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = kEYONE.GetValueOrDefault() };
+            if (!kEYONE.HasValue)
+                kEYONEParam.Value = DBNull.Value;
+
+            var kEYTWOParam = new OracleParameter { ParameterName = "KEY_TWO", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = kEYTWO.GetValueOrDefault() };
+            if (!kEYTWO.HasValue)
+                kEYTWOParam.Value = DBNull.Value;
+
+            await Database.ExecuteSqlRawAsync("BEGIN \"EFRPGTEST\".\"ORDER_PKG\".\"TOUCH_PARENT\"(:KEY_ONE, :KEY_TWO); END;",  new[] {kEYONEParam, kEYTWOParam}, cancellationToken);
+
+            return 0;
         }
 
 
@@ -342,6 +376,12 @@ namespace Efrpg.Oracle
 
         [DbFunction("NO_PARAMETERS", "EFRPGTEST")]
         public decimal NO_PARAMETERS()
+        {
+            throw new Exception("Don't call this directly. Use LINQ to call the scalar valued function as part of your query");
+        }
+
+        [DbFunction("\"EFRPGTEST\".\"ORDER_PKG\".\"DOUBLE_IT\"", IsBuiltIn = true)]
+        public decimal ORDER_PKG_DOUBLE_IT(decimal? n = null)
         {
             throw new Exception("Don't call this directly. Use LINQ to call the scalar valued function as part of your query");
         }
@@ -422,6 +462,8 @@ namespace Efrpg.Oracle
         public DbSet<STRING_DEFAULT_ESCAPING> STRING_DEFAULT_ESCAPINGs { get; set; } = null!; // STRING_DEFAULT_ESCAPING
         public DbSet<STUDENT> STUDENTs { get; set; } = null!; // STUDENT
         public DbSet<STUDENT_COURSE> STUDENT_COURSEs { get; set; } = null!; // STUDENT_COURSE
+        public DbSet<SYN_ACTIVE_Child> SYN_ACTIVE_Children { get; set; } = null!; // SYN_ACTIVE_CHILDREN
+        public DbSet<SYN_PARENT_COMPOSITE> SYN_PARENT_COMPOSITEs { get; set; } = null!; // SYN_PARENT_COMPOSITE
         public DbSet<UNENFORCED_CHILD> UNENFORCED_Children { get; set; } = null!; // UNENFORCED_CHILD
         public DbSet<UNENFORCED_PARENT> UNENFORCED_PARENTs { get; set; } = null!; // UNENFORCED_PARENT
 
@@ -463,6 +505,8 @@ namespace Efrpg.Oracle
             STRING_DEFAULT_ESCAPINGs = new FakeDbSet<STRING_DEFAULT_ESCAPING>("ID");
             STUDENTs = new FakeDbSet<STUDENT>("STUDENT_ID");
             STUDENT_COURSEs = new FakeDbSet<STUDENT_COURSE>("STUDENT_ID", "COURSE_ID");
+            SYN_ACTIVE_Children = new FakeDbSet<SYN_ACTIVE_Child>();
+            SYN_PARENT_COMPOSITEs = new FakeDbSet<SYN_PARENT_COMPOSITE>("KEY_ONE", "KEY_TWO");
             UNENFORCED_Children = new FakeDbSet<UNENFORCED_CHILD>("ID");
             UNENFORCED_PARENTs = new FakeDbSet<UNENFORCED_PARENT>("ID");
 
@@ -687,7 +731,7 @@ namespace Efrpg.Oracle
 
         // Stored Procedures
 
-        public int COUNT_CHILDREN(decimal? pARENTKEYONE, ref decimal? rUNNINGTOTAL)
+        public int COUNT_CHILDREN(decimal? pARENTKEYONE, out decimal? cHILDCOUNT, ref decimal? rUNNINGTOTAL)
         {
             cHILDCOUNT = default(decimal);
             rUNNINGTOTAL = default(decimal);
@@ -696,9 +740,9 @@ namespace Efrpg.Oracle
 
         // COUNT_CHILDRENAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-        public int GET_CHILDREN_BY_PARENT(decimal? pARENTKEYONE = null, decimal? pARENTKEYTWO = null)
+        public int GET_CHILDREN_BY_PARENT(decimal? pARENTKEYONE, decimal? pARENTKEYTWO, out object rESULTS)
         {
-            rESULTS = default(string);
+            rESULTS = default(object);
             return 0;
         }
 
@@ -710,6 +754,16 @@ namespace Efrpg.Oracle
         }
 
         public Task<int> NO_PARAMETERS_PROCAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return Task.FromResult(0);
+        }
+
+        public int ORDER_PKG_TOUCH_PARENT(decimal? kEYONE = null, decimal? kEYTWO = null)
+        {
+            return 0;
+        }
+
+        public Task<int> ORDER_PKG_TOUCH_PARENTAsync(decimal? kEYONE = null, decimal? kEYTWO = null, CancellationToken cancellationToken = default(CancellationToken))
         {
             return Task.FromResult(0);
         }
@@ -730,6 +784,12 @@ namespace Efrpg.Oracle
 
         // EFRPGTEST.NO_PARAMETERS
         public decimal NO_PARAMETERS()
+        {
+            return default(decimal);
+        }
+
+        // EFRPGTEST.ORDER_PKG.DOUBLE_IT
+        public decimal ORDER_PKG_DOUBLE_IT(decimal? n = null)
         {
             return default(decimal);
         }
@@ -1500,7 +1560,7 @@ namespace Efrpg.Oracle
         public DateTime? DATE_COL { get; set; } // DATE_COL
         public DateTime? TIMESTAMP_COL { get; set; } // TIMESTAMP_COL
         public DateTime? TIMESTAMP_6 { get; set; } // TIMESTAMP_6
-        public DateTime? TIMESTAMP_TZ { get; set; } // TIMESTAMP_TZ
+        public DateTimeOffset? TIMESTAMP_TZ { get; set; } // TIMESTAMP_TZ
         public DateTime? TIMESTAMP_LTZ { get; set; } // TIMESTAMP_LTZ
         public decimal? INTERVAL_YM { get; set; } // INTERVAL_YM
         public decimal? INTERVAL_DS { get; set; } // INTERVAL_DS
@@ -1624,7 +1684,7 @@ namespace Efrpg.Oracle
     public class EMPLOYEE
     {
         public decimal EMPLOYEE_ID { get; set; } // EMPLOYEE_ID (Primary key)
-        public long? MANAGER_ID { get; set; } // MANAGER_ID
+        public decimal? MANAGER_ID { get; set; } // MANAGER_ID
         public string FULL_NAME { get; set; } = null!; // FULL_NAME (length: 100)
 
         // Reverse navigation
@@ -1911,6 +1971,23 @@ namespace Efrpg.Oracle
         /// Parent STUDENT pointed by [STUDENT_COURSE].([STUDENT_ID]) (FK_STUDENT_COURSE_STUDENT)
         /// </summary>
         public virtual STUDENT STUDENT { get; set; } = null!; // FK_STUDENT_COURSE_STUDENT
+    }
+
+    // SYN_ACTIVE_CHILDREN
+    public class SYN_ACTIVE_Child
+    {
+        public decimal CHILD_ID { get; set; } // CHILD_ID
+        public string DESCRIPTION { get; set; } // DESCRIPTION (length: 50)
+        public string PARENT_NAME { get; set; } = null!; // PARENT_NAME (length: 50)
+    }
+
+    // SYN_PARENT_COMPOSITE
+    public class SYN_PARENT_COMPOSITE
+    {
+        public int KEY_ONE { get; set; } // KEY_ONE (Primary key)
+        public int KEY_TWO { get; set; } // KEY_TWO (Primary key)
+        public int ALT_KEY { get; set; } // ALT_KEY
+        public string NAME { get; set; } = null!; // NAME (length: 50)
     }
 
     // UNENFORCED_CHILD
@@ -2244,7 +2321,7 @@ namespace Efrpg.Oracle
         public void Configure(EntityTypeBuilder<IOT_TABLE> builder)
         {
             builder.ToTable("IOT_TABLE", "EFRPGTEST");
-            builder.HasKey(x => x.ID).HasName("PK_IOT_TABLE").IsClustered();
+            builder.HasKey(x => x.ID).HasName("PK_IOT_TABLE");
 
             builder.Property(x => x.ID).HasColumnName(@"ID").HasColumnType("number(10)").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.VALUE1).HasColumnName(@"VALUE1").HasColumnType("varchar2(50)").IsRequired(false).HasMaxLength(50);
@@ -2471,6 +2548,35 @@ namespace Efrpg.Oracle
             // Foreign keys
             builder.HasOne(a => a.COURSE).WithMany(b => b.STUDENT_COURSEs).HasForeignKey(c => c.COURSE_ID).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_STUDENT_COURSE_COURSE");
             builder.HasOne(a => a.STUDENT).WithMany(b => b.STUDENT_COURSEs).HasForeignKey(c => c.STUDENT_ID).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_STUDENT_COURSE_STUDENT");
+        }
+    }
+
+    // SYN_ACTIVE_CHILDREN
+    public class SYN_ACTIVE_ChildConfiguration : IEntityTypeConfiguration<SYN_ACTIVE_Child>
+    {
+        public void Configure(EntityTypeBuilder<SYN_ACTIVE_Child> builder)
+        {
+            builder.ToView("SYN_ACTIVE_CHILDREN", "EFRPGTEST");
+            builder.HasNoKey();
+
+            builder.Property(x => x.CHILD_ID).HasColumnName(@"CHILD_ID").HasColumnType("number").IsRequired();
+            builder.Property(x => x.DESCRIPTION).HasColumnName(@"DESCRIPTION").HasColumnType("varchar2(50)").IsRequired(false).HasMaxLength(50);
+            builder.Property(x => x.PARENT_NAME).HasColumnName(@"PARENT_NAME").HasColumnType("varchar2(50)").IsRequired().HasMaxLength(50);
+        }
+    }
+
+    // SYN_PARENT_COMPOSITE
+    public class SYN_PARENT_COMPOSITEConfiguration : IEntityTypeConfiguration<SYN_PARENT_COMPOSITE>
+    {
+        public void Configure(EntityTypeBuilder<SYN_PARENT_COMPOSITE> builder)
+        {
+            builder.ToTable("SYN_PARENT_COMPOSITE", "EFRPGTEST");
+            builder.HasKey(x => new { x.KEY_ONE, x.KEY_TWO });
+
+            builder.Property(x => x.KEY_ONE).HasColumnName(@"KEY_ONE").HasColumnType("number(10)").IsRequired().ValueGeneratedNever();
+            builder.Property(x => x.KEY_TWO).HasColumnName(@"KEY_TWO").HasColumnType("number(10)").IsRequired().ValueGeneratedNever();
+            builder.Property(x => x.ALT_KEY).HasColumnName(@"ALT_KEY").HasColumnType("number(10)").IsRequired();
+            builder.Property(x => x.NAME).HasColumnName(@"NAME").HasColumnType("varchar2(50)").IsRequired().HasMaxLength(50);
         }
     }
 

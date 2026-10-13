@@ -225,6 +225,9 @@
     <None Include="TestComparison\EfrpgTest_Oracle_EfCore8.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestComparison\EfrpgTestSyn_Oracle_EfCore8.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestComparison\EfrpgTestDa_Oracle_EfCore8.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

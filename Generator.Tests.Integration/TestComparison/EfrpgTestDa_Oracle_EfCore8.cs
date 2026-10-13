@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.EntityFrameworkCore.Storage;
+using Oracle.ManagedDataAccess.Client;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -61,10 +62,12 @@ namespace Efrpg.Oracle
         DbSet<PkOrdinalTest> PkOrdinalTests { get; set; } // PK_ORDINAL_TEST
         DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // PRINCIPAL_KEY_CHILD
         DbSet<SpacedTableName> SpacedTableNames { get; set; } // Spaced Table Name
-        DbSet<Status> Status { get; set; } // STATUS
+        DbSet<Status1> Status1 { get; set; } // STATUS
         DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // STRING_DEFAULT_ESCAPING
         DbSet<Student> Students { get; set; } // STUDENT
         DbSet<StudentCourse> StudentCourses { get; set; } // STUDENT_COURSE
+        DbSet<SynActiveChild> SynActiveChilds { get; set; } // SYN_ACTIVE_CHILDREN
+        DbSet<SynParentComposite> SynParentComposites { get; set; } // SYN_PARENT_COMPOSITE
         DbSet<UnenforcedChild> UnenforcedChilds { get; set; } // UNENFORCED_CHILD
         DbSet<UnenforcedParent> UnenforcedParents { get; set; } // UNENFORCED_PARENT
 
@@ -113,20 +116,24 @@ namespace Efrpg.Oracle
         IQueryable<TResult> FromExpression<TResult> (Expression<Func<IQueryable<TResult>>> expression);
 
         // Stored Procedures
-        int CountChildren(decimal? parentKeyOne, ref decimal? runningTotal);
+        int CountChildren(decimal? parentKeyOne, out decimal? childCount, ref decimal? runningTotal);
         // CountChildrenAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-        int GetChildrenByParent(decimal? parentKeyOne, decimal? parentKeyTwo);
+        int GetChildrenByParent(decimal? parentKeyOne, decimal? parentKeyTwo, out object results);
         // GetChildrenByParentAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
         int NoParametersProc();
         Task<int> NoParametersProcAsync(CancellationToken cancellationToken = default(CancellationToken));
+
+        int OrderPkgTouchParent(decimal? keyOne, decimal? keyTwo);
+        Task<int> OrderPkgTouchParentAsync(decimal? keyOne, decimal? keyTwo, CancellationToken cancellationToken = default(CancellationToken));
 
 
         // Scalar Valued Functions
         decimal IsHighValue(decimal? value, decimal? threshold); // EFRPGTEST.IS_HIGH_VALUE
         decimal LineTotal(decimal? quantity, decimal? unitPrice); // EFRPGTEST.LINE_TOTAL
         decimal NoParameters(); // EFRPGTEST.NO_PARAMETERS
+        decimal OrderPkgDoubleIt(decimal? n); // EFRPGTEST.ORDER_PKG.DOUBLE_IT
     }
 
     #endregion
@@ -178,10 +185,12 @@ namespace Efrpg.Oracle
         public DbSet<PkOrdinalTest> PkOrdinalTests { get; set; } // PK_ORDINAL_TEST
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // PRINCIPAL_KEY_CHILD
         public DbSet<SpacedTableName> SpacedTableNames { get; set; } // Spaced Table Name
-        public DbSet<Status> Status { get; set; } // STATUS
+        public DbSet<Status1> Status1 { get; set; } // STATUS
         public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // STRING_DEFAULT_ESCAPING
         public DbSet<Student> Students { get; set; } // STUDENT
         public DbSet<StudentCourse> StudentCourses { get; set; } // STUDENT_COURSE
+        public DbSet<SynActiveChild> SynActiveChilds { get; set; } // SYN_ACTIVE_CHILDREN
+        public DbSet<SynParentComposite> SynParentComposites { get; set; } // SYN_PARENT_COMPOSITE
         public DbSet<UnenforcedChild> UnenforcedChilds { get; set; } // UNENFORCED_CHILD
         public DbSet<UnenforcedParent> UnenforcedParents { get; set; } // UNENFORCED_PARENT
 
@@ -238,10 +247,12 @@ namespace Efrpg.Oracle
             modelBuilder.ApplyConfiguration(new PkOrdinalTestConfiguration());
             modelBuilder.ApplyConfiguration(new PrincipalKeyChildConfiguration());
             modelBuilder.ApplyConfiguration(new SpacedTableNameConfiguration());
-            modelBuilder.ApplyConfiguration(new StatusConfiguration());
+            modelBuilder.ApplyConfiguration(new Status1Configuration());
             modelBuilder.ApplyConfiguration(new StringDefaultEscapingConfiguration());
             modelBuilder.ApplyConfiguration(new StudentConfiguration());
             modelBuilder.ApplyConfiguration(new StudentCourseConfiguration());
+            modelBuilder.ApplyConfiguration(new SynActiveChildConfiguration());
+            modelBuilder.ApplyConfiguration(new SynParentCompositeConfiguration());
             modelBuilder.ApplyConfiguration(new UnenforcedChildConfiguration());
             modelBuilder.ApplyConfiguration(new UnenforcedParentConfiguration());
 
@@ -254,20 +265,18 @@ namespace Efrpg.Oracle
 
 
         // Stored Procedures
-        public int CountChildren(decimal? parentKeyOne, ref decimal? runningTotal)
+        public int CountChildren(decimal? parentKeyOne, out decimal? childCount, ref decimal? runningTotal)
         {
-            var parentKeyOneParam = new OracleParameter { ParameterName = "PARENT_KEY_ONE", SqlDbType = SqlDbType.number, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault() };
+            var parentKeyOneParam = new OracleParameter { ParameterName = "PARENT_KEY_ONE", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault() };
             if (!parentKeyOne.HasValue)
                 parentKeyOneParam.Value = DBNull.Value;
 
-            var childCountParam = new OracleParameter { ParameterName = "CHILD_COUNT", SqlDbType = SqlDbType.number, Direction = ParameterDirection.Output };
-            var runningTotalParam = new OracleParameter { ParameterName = "RUNNING_TOTAL", SqlDbType = SqlDbType.number, Direction = ParameterDirection.InputOutput, Value = runningTotal.GetValueOrDefault() };
+            var childCountParam = new OracleParameter { ParameterName = "CHILD_COUNT", DbType = DbType.Decimal, Direction = ParameterDirection.Output };
+            var runningTotalParam = new OracleParameter { ParameterName = "RUNNING_TOTAL", DbType = DbType.Decimal, Direction = ParameterDirection.InputOutput, Value = runningTotal.GetValueOrDefault() };
             if (!runningTotal.HasValue)
                 runningTotalParam.Value = DBNull.Value;
 
-            var procResultParam = new OracleParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
-
-            Database.ExecuteSqlRaw("EXEC @procResult = [EFRPGTEST].[COUNT_CHILDREN] PARENT_KEY_ONE, CHILD_COUNT OUTPUT, RUNNING_TOTAL OUTPUT", parentKeyOneParam, childCountParam, runningTotalParam, procResultParam);
+            Database.ExecuteSqlRaw("BEGIN \"EFRPGTEST\".\"COUNT_CHILDREN\"(:PARENT_KEY_ONE, :CHILD_COUNT, :RUNNING_TOTAL); END;", parentKeyOneParam, childCountParam, runningTotalParam);
 
             if (IsSqlParameterNull(childCountParam))
                 childCount = null;
@@ -279,52 +288,77 @@ namespace Efrpg.Oracle
             else
                 runningTotal = (decimal) runningTotalParam.Value;
 
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         // CountChildrenAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-        public int GetChildrenByParent(decimal? parentKeyOne = null, decimal? parentKeyTwo = null)
+        public int GetChildrenByParent(decimal? parentKeyOne, decimal? parentKeyTwo, out object results)
         {
-            var parentKeyOneParam = new OracleParameter { ParameterName = "PARENT_KEY_ONE", SqlDbType = SqlDbType.number, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault() };
+            var parentKeyOneParam = new OracleParameter { ParameterName = "PARENT_KEY_ONE", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault() };
             if (!parentKeyOne.HasValue)
                 parentKeyOneParam.Value = DBNull.Value;
 
-            var parentKeyTwoParam = new OracleParameter { ParameterName = "PARENT_KEY_TWO", SqlDbType = SqlDbType.number, Direction = ParameterDirection.Input, Value = parentKeyTwo.GetValueOrDefault() };
+            var parentKeyTwoParam = new OracleParameter { ParameterName = "PARENT_KEY_TWO", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = parentKeyTwo.GetValueOrDefault() };
             if (!parentKeyTwo.HasValue)
                 parentKeyTwoParam.Value = DBNull.Value;
 
-            var resultsParam = new OracleParameter { ParameterName = "RESULTS", SqlDbType = SqlDbType.ref cursor, Direction = ParameterDirection.Output };
-            var procResultParam = new OracleParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            var resultsParam = new OracleParameter { ParameterName = "RESULTS", OracleDbType = OracleDbType.RefCursor, Direction = ParameterDirection.Output };
 
-            Database.ExecuteSqlRaw("EXEC @procResult = [EFRPGTEST].[GET_CHILDREN_BY_PARENT] PARENT_KEY_ONE, PARENT_KEY_TWO, RESULTS OUTPUT", parentKeyOneParam, parentKeyTwoParam, resultsParam, procResultParam);
+            Database.ExecuteSqlRaw("BEGIN \"EFRPGTEST\".\"GET_CHILDREN_BY_PARENT\"(:PARENT_KEY_ONE, :PARENT_KEY_TWO, :RESULTS); END;", parentKeyOneParam, parentKeyTwoParam, resultsParam);
 
             if (IsSqlParameterNull(resultsParam))
-                results = default(string);
+                results = default(object);
             else
-                results = (string) resultsParam.Value;
+                results = (object) resultsParam.Value;
 
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         // GetChildrenByParentAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
         public int NoParametersProc()
         {
-            var procResultParam = new OracleParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            Database.ExecuteSqlRaw("BEGIN \"EFRPGTEST\".\"NO_PARAMETERS_PROC\"(); END;");
 
-            Database.ExecuteSqlRaw("EXEC @procResult = [EFRPGTEST].[NO_PARAMETERS_PROC] ", procResultParam);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         public async Task<int> NoParametersProcAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            var procResultParam = new OracleParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            await Database.ExecuteSqlRawAsync("BEGIN \"EFRPGTEST\".\"NO_PARAMETERS_PROC\"(); END;", cancellationToken);
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [EFRPGTEST].[NO_PARAMETERS_PROC]",  new[] {procResultParam}, cancellationToken);
+            return 0;
+        }
 
-            return (int)procResultParam.Value;
+        public int OrderPkgTouchParent(decimal? keyOne = null, decimal? keyTwo = null)
+        {
+            var keyOneParam = new OracleParameter { ParameterName = "KEY_ONE", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
+            if (!keyOne.HasValue)
+                keyOneParam.Value = DBNull.Value;
+
+            var keyTwoParam = new OracleParameter { ParameterName = "KEY_TWO", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
+            if (!keyTwo.HasValue)
+                keyTwoParam.Value = DBNull.Value;
+
+            Database.ExecuteSqlRaw("BEGIN \"EFRPGTEST\".\"ORDER_PKG\".\"TOUCH_PARENT\"(:KEY_ONE, :KEY_TWO); END;", keyOneParam, keyTwoParam);
+
+            return 0;
+        }
+
+        public async Task<int> OrderPkgTouchParentAsync(decimal? keyOne = null, decimal? keyTwo = null, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var keyOneParam = new OracleParameter { ParameterName = "KEY_ONE", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
+            if (!keyOne.HasValue)
+                keyOneParam.Value = DBNull.Value;
+
+            var keyTwoParam = new OracleParameter { ParameterName = "KEY_TWO", DbType = DbType.Decimal, Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
+            if (!keyTwo.HasValue)
+                keyTwoParam.Value = DBNull.Value;
+
+            await Database.ExecuteSqlRawAsync("BEGIN \"EFRPGTEST\".\"ORDER_PKG\".\"TOUCH_PARENT\"(:KEY_ONE, :KEY_TWO); END;",  new[] {keyOneParam, keyTwoParam}, cancellationToken);
+
+            return 0;
         }
 
 
@@ -344,6 +378,12 @@ namespace Efrpg.Oracle
 
         [DbFunction("NO_PARAMETERS", "EFRPGTEST")]
         public decimal NoParameters()
+        {
+            throw new Exception("Don't call this directly. Use LINQ to call the scalar valued function as part of your query");
+        }
+
+        [DbFunction("\"EFRPGTEST\".\"ORDER_PKG\".\"DOUBLE_IT\"", IsBuiltIn = true)]
+        public decimal OrderPkgDoubleIt(decimal? n = null)
         {
             throw new Exception("Don't call this directly. Use LINQ to call the scalar valued function as part of your query");
         }
@@ -420,10 +460,12 @@ namespace Efrpg.Oracle
         public DbSet<PkOrdinalTest> PkOrdinalTests { get; set; } = null!; // PK_ORDINAL_TEST
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } = null!; // PRINCIPAL_KEY_CHILD
         public DbSet<SpacedTableName> SpacedTableNames { get; set; } = null!; // Spaced Table Name
-        public DbSet<Status> Status { get; set; } = null!; // STATUS
+        public DbSet<Status1> Status1 { get; set; } = null!; // STATUS
         public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } = null!; // STRING_DEFAULT_ESCAPING
         public DbSet<Student> Students { get; set; } = null!; // STUDENT
         public DbSet<StudentCourse> StudentCourses { get; set; } = null!; // STUDENT_COURSE
+        public DbSet<SynActiveChild> SynActiveChilds { get; set; } = null!; // SYN_ACTIVE_CHILDREN
+        public DbSet<SynParentComposite> SynParentComposites { get; set; } = null!; // SYN_PARENT_COMPOSITE
         public DbSet<UnenforcedChild> UnenforcedChilds { get; set; } = null!; // UNENFORCED_CHILD
         public DbSet<UnenforcedParent> UnenforcedParents { get; set; } = null!; // UNENFORCED_PARENT
 
@@ -461,10 +503,12 @@ namespace Efrpg.Oracle
             PkOrdinalTests = new FakeDbSet<PkOrdinalTest>("FirstKey", "SecondKey");
             PrincipalKeyChilds = new FakeDbSet<PrincipalKeyChild>("Id");
             SpacedTableNames = new FakeDbSet<SpacedTableName>("SpacedTableName_");
-            Status = new FakeDbSet<Status>("Id");
+            Status1 = new FakeDbSet<Status1>("Id");
             StringDefaultEscapings = new FakeDbSet<StringDefaultEscaping>("Id");
             Students = new FakeDbSet<Student>("StudentId");
             StudentCourses = new FakeDbSet<StudentCourse>("StudentId", "CourseId");
+            SynActiveChilds = new FakeDbSet<SynActiveChild>();
+            SynParentComposites = new FakeDbSet<SynParentComposite>("KeyOne", "KeyTwo");
             UnenforcedChilds = new FakeDbSet<UnenforcedChild>("Id");
             UnenforcedParents = new FakeDbSet<UnenforcedParent>("Id");
 
@@ -689,7 +733,7 @@ namespace Efrpg.Oracle
 
         // Stored Procedures
 
-        public int CountChildren(decimal? parentKeyOne, ref decimal? runningTotal)
+        public int CountChildren(decimal? parentKeyOne, out decimal? childCount, ref decimal? runningTotal)
         {
             childCount = default(decimal);
             runningTotal = default(decimal);
@@ -698,9 +742,9 @@ namespace Efrpg.Oracle
 
         // CountChildrenAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-        public int GetChildrenByParent(decimal? parentKeyOne = null, decimal? parentKeyTwo = null)
+        public int GetChildrenByParent(decimal? parentKeyOne, decimal? parentKeyTwo, out object results)
         {
-            results = default(string);
+            results = default(object);
             return 0;
         }
 
@@ -712,6 +756,16 @@ namespace Efrpg.Oracle
         }
 
         public Task<int> NoParametersProcAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return Task.FromResult(0);
+        }
+
+        public int OrderPkgTouchParent(decimal? keyOne = null, decimal? keyTwo = null)
+        {
+            return 0;
+        }
+
+        public Task<int> OrderPkgTouchParentAsync(decimal? keyOne = null, decimal? keyTwo = null, CancellationToken cancellationToken = default(CancellationToken))
         {
             return Task.FromResult(0);
         }
@@ -732,6 +786,12 @@ namespace Efrpg.Oracle
 
         // EFRPGTEST.NO_PARAMETERS
         public decimal NoParameters()
+        {
+            return default(decimal);
+        }
+
+        // EFRPGTEST.ORDER_PKG.DOUBLE_IT
+        public decimal OrderPkgDoubleIt(decimal? n = null)
         {
             return default(decimal);
         }
@@ -1624,7 +1684,7 @@ namespace Efrpg.Oracle
         public DateTime? Timestamp6 { get; set; } // TIMESTAMP_6
 
         [Display(Name = "Timestamp tz")]
-        public DateTime? TimestampTz { get; set; } // TIMESTAMP_TZ
+        public DateTimeOffset? TimestampTz { get; set; } // TIMESTAMP_TZ
 
         [Display(Name = "Timestamp ltz")]
         public DateTime? TimestampLtz { get; set; } // TIMESTAMP_LTZ
@@ -1857,7 +1917,7 @@ namespace Efrpg.Oracle
         public decimal EmployeeId { get; set; } // EMPLOYEE_ID (Primary key)
 
         [Display(Name = "Manager ID")]
-        public long? ManagerId { get; set; } // MANAGER_ID
+        public decimal? ManagerId { get; set; } // MANAGER_ID
 
         [MaxLength(100)]
         [StringLength(100)]
@@ -2318,7 +2378,7 @@ namespace Efrpg.Oracle
 
     // STATUS
     [Table("STATUS", Schema = "EFRPGTEST")]
-    public class Status
+    public class Status1
     {
         [Key, Column(Order = 1)]
         [Required]
@@ -2434,6 +2494,53 @@ namespace Efrpg.Oracle
         /// Parent Student pointed by [STUDENT_COURSE].([StudentId]) (FK_STUDENT_COURSE_STUDENT)
         /// </summary>
         public virtual Student Student { get; set; } = null!; // FK_STUDENT_COURSE_STUDENT
+    }
+
+    // SYN_ACTIVE_CHILDREN
+    [Table("SYN_ACTIVE_CHILDREN", Schema = "EFRPGTEST")]
+    public class SynActiveChild
+    {
+        [Required]
+        [Display(Name = "Child ID")]
+        public decimal ChildId { get; set; } // CHILD_ID
+
+        [MaxLength(50)]
+        [StringLength(50)]
+        [Display(Name = "Description")]
+        public string Description { get; set; } // DESCRIPTION (length: 50)
+
+        [MaxLength(50)]
+        [StringLength(50)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Parent name")]
+        public string ParentName { get; set; } = null!; // PARENT_NAME (length: 50)
+    }
+
+    // SYN_PARENT_COMPOSITE
+    [Table("SYN_PARENT_COMPOSITE", Schema = "EFRPGTEST")]
+    public class SynParentComposite
+    {
+        [Key, Column(Order = 1)]
+        [Required]
+        [Display(Name = "Key one")]
+        [DatabaseGenerated(DatabaseGeneratedOption.None)]
+        public int KeyOne { get; set; } // KEY_ONE (Primary key)
+
+        [Key, Column(Order = 2)]
+        [Required]
+        [Display(Name = "Key two")]
+        [DatabaseGenerated(DatabaseGeneratedOption.None)]
+        public int KeyTwo { get; set; } // KEY_TWO (Primary key)
+
+        [Required]
+        [Display(Name = "Alt key")]
+        public int AltKey { get; set; } // ALT_KEY
+
+        [MaxLength(50)]
+        [StringLength(50)]
+        [Required(AllowEmptyStrings = true)]
+        [Display(Name = "Name")]
+        public string Name { get; set; } = null!; // NAME (length: 50)
     }
 
     // UNENFORCED_CHILD
@@ -2760,7 +2867,7 @@ namespace Efrpg.Oracle
     {
         public void Configure(EntityTypeBuilder<IotTable> builder)
         {
-            builder.HasKey(x => x.Id).HasName("PK_IOT_TABLE").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PK_IOT_TABLE");
 
             builder.Property(x => x.Id).HasColumnName(@"ID").HasColumnType("number(10)");
             builder.Property(x => x.Value1).HasColumnName(@"VALUE1").HasColumnType("varchar2(50)").IsRequired(false);
@@ -2921,9 +3028,9 @@ namespace Efrpg.Oracle
     }
 
     // STATUS
-    public class StatusConfiguration : IEntityTypeConfiguration<Status>
+    public class Status1Configuration : IEntityTypeConfiguration<Status1>
     {
-        public void Configure(EntityTypeBuilder<Status> builder)
+        public void Configure(EntityTypeBuilder<Status1> builder)
         {
             builder.HasKey(x => x.Id).HasName("PK_STATUS");
 
@@ -2972,6 +3079,33 @@ namespace Efrpg.Oracle
             // Foreign keys
             builder.HasOne(a => a.Course).WithMany(b => b.StudentCourses).HasForeignKey(c => c.CourseId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_STUDENT_COURSE_COURSE");
             builder.HasOne(a => a.Student).WithMany(b => b.StudentCourses).HasForeignKey(c => c.StudentId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_STUDENT_COURSE_STUDENT");
+        }
+    }
+
+    // SYN_ACTIVE_CHILDREN
+    public class SynActiveChildConfiguration : IEntityTypeConfiguration<SynActiveChild>
+    {
+        public void Configure(EntityTypeBuilder<SynActiveChild> builder)
+        {
+            builder.HasNoKey();
+
+            builder.Property(x => x.ChildId).HasColumnName(@"CHILD_ID").HasColumnType("number");
+            builder.Property(x => x.Description).HasColumnName(@"DESCRIPTION").HasColumnType("varchar2(50)").IsRequired(false);
+            builder.Property(x => x.ParentName).HasColumnName(@"PARENT_NAME").HasColumnType("varchar2(50)");
+        }
+    }
+
+    // SYN_PARENT_COMPOSITE
+    public class SynParentCompositeConfiguration : IEntityTypeConfiguration<SynParentComposite>
+    {
+        public void Configure(EntityTypeBuilder<SynParentComposite> builder)
+        {
+            builder.HasKey(x => new { x.KeyOne, x.KeyTwo });
+
+            builder.Property(x => x.KeyOne).HasColumnName(@"KEY_ONE").HasColumnType("number(10)");
+            builder.Property(x => x.KeyTwo).HasColumnName(@"KEY_TWO").HasColumnType("number(10)");
+            builder.Property(x => x.AltKey).HasColumnName(@"ALT_KEY").HasColumnType("number(10)");
+            builder.Property(x => x.Name).HasColumnName(@"NAME").HasColumnType("varchar2(50)");
         }
     }
 

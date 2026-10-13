@@ -58,13 +58,22 @@ namespace Generator.Tests.Unit.DocSamples
         /// </summary>
         public static string Generate(Schema schema, Action configure)
         {
+            return GenerateFromPayload(File.ReadAllText(SchemaPath(schema)), configure);
+        }
+
+        /// <summary>
+        ///     Generates from an efrpg payload a test writes itself, for a provider or column shape neither doc schema
+        ///     has. Same shipped defaults, same single file, no database.
+        /// </summary>
+        public static string GenerateFromPayload(string payloadXml, Action configure)
+        {
             ApplyDatabaseTtDefaults();
             configure?.Invoke();
             FilterSettings.CheckSettings(); // Honour any FilterSettings the sample changed
 
             var outer = new GeneratedTextTransformation();
             var fileManagement = new FileManagementService(outer);
-            var generator = GeneratorFactory.Create(LoadSchema(schema), fileManagement, null);
+            var generator = GeneratorFactory.Create(EfrpgResultXmlReader.Read(payloadXml), fileManagement, null);
 
             if (generator == null || !generator.InitialisationOk)
                 throw new InvalidOperationException("The generator would not initialise for a doc sample.");

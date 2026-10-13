@@ -48,6 +48,17 @@ namespace Efrpg
             return candidate;
         }
 
+        /// <summary>
+        ///     A schema name made fit to prefix a C# identifier, as PrependSchemaName does. The raw name can hold
+        ///     anything a quoted identifier can, such as PostgreSQL's "Mixed Case Schema", which produced a class
+        ///     named Mixed Case Schema_SpacedTableName. Tables, routines and foreign keys must all use this, or a
+        ///     relationship stops finding the entity it points at.
+        /// </summary>
+        public static string CleanSchemaName(string schema)
+        {
+            return CleanUp(schema).Replace(" ", string.Empty).Replace("$", string.Empty);
+        }
+
         public static readonly Func<string, string> CleanUp = (str) =>
         {
             if (string.IsNullOrEmpty(str))

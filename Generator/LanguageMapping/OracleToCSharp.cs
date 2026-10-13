@@ -36,7 +36,7 @@ namespace Efrpg.LanguageMapping
                 { "real",                           "float" },
                 { "rowid",                          "string" },
                 { "timestamp with local time zone", "DateTime" },
-                { "timestamp with time zone",       "DateTime" },
+                { "timestamp with time zone",       "DateTimeOffset" }, // Oracle.EntityFrameworkCore refuses DateTime here
                 { "timestamp",                      "DateTime" },
                 { "urowid",                         "string" },
                 { "varchar2",                       "string" },

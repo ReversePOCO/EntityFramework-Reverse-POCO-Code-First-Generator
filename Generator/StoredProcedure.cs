@@ -115,7 +115,7 @@ namespace Efrpg
         {
             var willIncludeProcResult = includeProcResult && ReturnModels.Count > 0 && ReturnModels.First().Count > 0;
             var sb = new StringBuilder(255);
-            var data = Parameters.Where(x => x.Mode != StoredProcedureParameterMode.Out).OrderBy(x => x.Ordinal).ToList();
+            var data = Parameters.Where(x => x.Mode != StoredProcedureParameterMode.Out || IsProcedureOutParameter(x)).OrderBy(x => x.Ordinal).ToList();
 
             // When any parameter carries DB default info, use it to determine optional params.
             // Otherwise fall back to the type-based tail heuristic for backward compatibility.
@@ -182,7 +182,7 @@ namespace Efrpg
         // Whether the generated method declares this parameter with '?'. It depends on the parameter alone, so every
         // overload, the interface and the fake context agree; otherwise one passes a string? to another's string.
         // A reference type is only annotated under AllowNullStrings, and only when NULL is a legitimate value: its
-        // database default is NULL, or it is INOUT and so comes back NULL whenever the database says so.
+        // database default is NULL, or it is INOUT or OUT and so comes back NULL whenever the database says so.
         // NullableReverseNavigationProperties only controls reverse nav props, not SP parameter types.
         private static bool IsNullableInSignature(StoredProcedureParameter p)
         {
@@ -192,7 +192,38 @@ namespace Efrpg
             if (!Settings.AllowNullStrings)
                 return false;
 
-            return p.Mode == StoredProcedureParameterMode.InOut || (p.HasDefault && p.DefaultValue == null);
+            return p.Mode != StoredProcedureParameterMode.In || (p.HasDefault && p.DefaultValue == null);
+        }
+
+        private static bool IsSqlServer()
+        {
+            return Settings.DatabaseType == DatabaseType.SqlServer;
+        }
+
+        // Only SQL Server procedures have a return status, which is what procResult carries. Elsewhere the generated
+        // method still returns int, so one interface or fake fits every provider, and returns 0.
+        public static bool ReturnsProcResult()
+        {
+            return IsSqlServer();
+        }
+
+        // SQL Server reports a procedure's OUTPUT parameter as INOUT, so there OUT only ever marks a function's return
+        // value, which is never an argument. Every other database reports a procedure's OUT parameter as OUT, and the
+        // caller must receive it.
+        private bool IsProcedureOutParameter(StoredProcedureParameter p)
+        {
+            return IsStoredProcedure && p.Mode == StoredProcedureParameterMode.Out && !IsSqlServer();
+        }
+
+        // A PostgreSQL function's OUT parameter is a column of the rows it returns, not something the caller passes.
+        private bool IsResultColumn(StoredProcedureParameter p)
+        {
+            return IsTableValuedFunction && p.Mode == StoredProcedureParameterMode.Out && !IsSqlServer();
+        }
+
+        private List<StoredProcedureParameter> CallArguments()
+        {
+            return Parameters.Where(p => !IsResultColumn(p)).OrderBy(x => x.Ordinal).ToList();
         }
 
         // Converts a StoredProcedureParameter's stored DefaultValue to a valid C# literal.
@@ -314,7 +345,8 @@ namespace Efrpg
             var parameterNumber = dataCount;
             foreach (var parameter in data.OrderByDescending(x => x.Ordinal))
             {
-                if (parameter.Mode == StoredProcedureParameterMode.InOut ||
+                // A ref or out argument cannot follow an optional one, so the optional tail stops at the first of them.
+                if (parameter.Mode != StoredProcedureParameterMode.In ||
                     Column.StoredProcedureNotNullable.Contains(parameter.PropertyType.ToLower()))
                 {
                     return parameterNumber == dataCount ? 0 : parameterNumber + 1;
@@ -342,6 +374,11 @@ namespace Efrpg
 
         public string WriteStoredProcFunctionSqlAtParams()
         {
+            // Outside SQL Server this only ever lands in an EF6 Entity SQL function call, whose parameters are written
+            // @name and which has no OUTPUT keyword.
+            if (!IsSqlServer())
+                return string.Join(", ", CallArguments().Select(p => "@" + p.Name.TrimStart('@')));
+
             var sb = new StringBuilder(255);
             var n = 1;
             var count = Parameters.Count;
@@ -356,10 +393,73 @@ namespace Efrpg
             return sb.ToString();
         }
 
+        // The statement that calls this procedure outside SQL Server, written into a C# string literal. Each shape was
+        // run against the provider's driver through EF Core's ExecuteSqlRaw before it was used here.
+        public string WriteStoredProcFunctionCallSql()
+        {
+            var name = WriteStoredProcFunctionQualifiedName();
+            var parameters = Parameters.OrderBy(x => x.Ordinal).ToList();
+            switch (Settings.DatabaseType)
+            {
+                case DatabaseType.Oracle:
+                    return string.Format("BEGIN {0}({1}); END;", name, string.Join(", ", parameters.Select(p => ":" + p.Name)));
+
+                case DatabaseType.PostgreSQL:
+                    // Npgsql refuses an out-only parameter named in the SQL, and fills it from the row CALL returns.
+                    return string.Format("CALL {0}({1})", name,
+                        string.Join(", ", parameters.Select(p => p.Mode == StoredProcedureParameterMode.Out ? "NULL" : "@" + p.Name)));
+
+                case DatabaseType.MySql:
+                    return string.Format("CALL {0}({1})", name, string.Join(", ", parameters.Select(p => "@" + p.Name)));
+
+                default:
+                    return string.Format("EXEC @procResult = [{0}].[{1}] {2}", Schema.DbName, DbName, WriteStoredProcFunctionSqlAtParams());
+            }
+        }
+
+        // MySqlConnector accepts no direction but Input on a text command, so a CALL cannot return an OUT or INOUT
+        // parameter. Such a procedure runs as a CommandType.StoredProcedure command on EF's own connection instead.
+        public bool ExecutesAsStoredProcedureCommand()
+        {
+            return Settings.DatabaseType == DatabaseType.MySql && Parameters.Any(p => p.Mode != StoredProcedureParameterMode.In);
+        }
+
+        // The schema-qualified name in the database's own quoting. The tool reports an Oracle package member as
+        // PACKAGE.MEMBER, so there each part is quoted on its own. Double quotes are escaped because the result is
+        // written inside a C# string literal.
+        public string WriteStoredProcFunctionQualifiedName()
+        {
+            var parts = new List<string> { Schema.DbName };
+            parts.AddRange(Settings.DatabaseType == DatabaseType.Oracle ? DbName.Split('.') : new[] { DbName });
+
+            switch (Settings.DatabaseType)
+            {
+                case DatabaseType.SqlServer:
+                    return string.Join(".", parts.Select(x => "[" + x + "]"));
+
+                case DatabaseType.MySql:
+                    return string.Join(".", parts.Select(x => "`" + x + "`"));
+
+                default:
+                    return string.Join(".", parts.Select(x => "\\\"" + x + "\\\""));
+            }
+        }
+
+        // The arguments of this scalar function's [DbFunction] attribute. EF quotes a DbFunction name as a single
+        // identifier, so an Oracle package member cannot be called PACKAGE.MEMBER there. Mapped as built in, its quoted
+        // three-part name goes into the SQL exactly as written.
+        public string WriteDbFunctionArguments()
+        {
+            if (Settings.DatabaseType == DatabaseType.Oracle && DbName.Contains('.'))
+                return string.Format("\"{0}\", IsBuiltIn = true", WriteStoredProcFunctionQualifiedName());
+
+            return string.Format("\"{0}\", \"{1}\"", DbName, Schema.DbName);
+        }
+
         public string WriteNetCoreTableValuedFunctionsSqlAtParams()
         {
             var sb = new StringBuilder(255);
-            var count = Parameters.Count;
+            var count = CallArguments().Count;
             for (var n = 0; n < count; n++)
             {
                 sb.AppendFormat("{{{0}}}{1}",
@@ -389,11 +489,13 @@ namespace Efrpg
                 var spatialSqlType = isDbGeography ? "SqlGeography" : "SqlGeometry";
                 var spatialUdtName = isDbGeography ? "geography" : "geometry";
 
+                var typeAssignment = isSpatialEf6 ? string.Format("UdtTypeName = \"{0}\"", spatialUdtName) : WriteParameterTypeAssignment(p);
+
                 sb.AppendLine(
                     string.Format("        var {0} = new {1}", WriteStoredProcSqlParameterName(p), Settings.SqlParameter())
                     + string.Format(" {{ ParameterName = \"{0}\", ", p.Name)
-                    + (isSpatialEf6 ? string.Format("UdtTypeName = \"{0}\"", spatialUdtName) : string.Format("SqlDbType = SqlDbType.{0}", p.SqlDbType))
-                    + ", Direction = ParameterDirection."
+                    + (typeAssignment.Length > 0 ? typeAssignment + ", " : string.Empty)
+                    + "Direction = ParameterDirection."
                     + (p.Mode == StoredProcedureParameterMode.In ? "Input" : p.Mode == StoredProcedureParameterMode.InOut ? "InputOutput" : "Output")
                     + (p.Mode != StoredProcedureParameterMode.Out
                         ? ", Value = " + (isSpatialEf6
@@ -401,6 +503,7 @@ namespace Efrpg
                             : p.NameHumanCase + getValueOrDefault)
                         : string.Empty)
                     + (p.MaxLength != 0 ? ", Size = " + p.MaxLength : string.Empty)
+                    + (NeedsPlSqlBufferSize(p) ? ", Size = " + PlSqlMaxBufferSize : string.Empty)
                     + ((p.Precision > 0 || p.Scale > 0) ? ", Precision = " + p.Precision + ", Scale = " + p.Scale : string.Empty)
                     + (p.PropertyType.ToLower().Contains("datatable") ? ", TypeName = \"" + p.UserDefinedTypeName + "\"" : string.Empty)
                     + " };");
@@ -415,25 +518,86 @@ namespace Efrpg
                 }
             }
 
-            if (includeProcResult && ReturnModels.Count < 2)
+            if (includeProcResult && ReturnModels.Count < 2 && ReturnsProcResult())
             {
                 sb.Append("        var procResultParam = new ");
                 sb.Append(Settings.SqlParameter());
                 sb.AppendLine(" { ParameterName = \"@procResult\", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };");
             }
 
+            // With no procResult line to close them, the declarations end on a blank line of their own, so the call is
+            // set apart the same way whatever kind of parameter came last.
+            var blankLine = Environment.NewLine + Environment.NewLine;
+            if (!ReturnsProcResult() && sb.Length > 0 && !sb.ToString().EndsWith(blankLine))
+                sb.AppendLine();
+
             return sb.ToString();
+        }
+
+        // DbType values that every ADO.NET provider here maps the same way. Oracle needs one on an OUT parameter: with
+        // OracleDbType set instead, ODP.NET hands back OracleDecimal, which the generated (decimal) cast cannot unbox.
+        private static readonly Dictionary<string, string> ProviderNeutralDbTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "bool",           "Boolean" },
+            { "byte",           "Byte" },
+            { "sbyte",          "SByte" },
+            { "short",          "Int16" },
+            { "ushort",         "UInt16" },
+            { "int",            "Int32" },
+            { "uint",           "UInt32" },
+            { "long",           "Int64" },
+            { "ulong",          "UInt64" },
+            { "decimal",        "Decimal" },
+            { "double",         "Double" },
+            { "float",          "Single" },
+            { "string",         "String" },
+            { "DateTime",       "DateTime" },
+            { "DateTimeOffset", "DateTimeOffset" },
+            { "Guid",           "Guid" },
+            { "byte[]",         "Binary" }
+        };
+
+        // PL/SQL's largest VARCHAR2 and RAW. ALL_ARGUMENTS records no length for a procedure's parameter, and ODP.NET
+        // raises ORA-06502 when an OUT string has no buffer to land in.
+        private const int PlSqlMaxBufferSize = 32767;
+
+        private static bool NeedsPlSqlBufferSize(StoredProcedureParameter p)
+        {
+            var propertyType = (p.PropertyType ?? string.Empty).ToLowerInvariant();
+            return Settings.DatabaseType == DatabaseType.Oracle && p.MaxLength == 0 && p.Mode != StoredProcedureParameterMode.In &&
+                   (propertyType == "string" || propertyType == "byte[]");
+        }
+
+        private static string WriteParameterTypeAssignment(StoredProcedureParameter p)
+        {
+            switch (Settings.DatabaseType)
+            {
+                case DatabaseType.SqlServer:
+                    return string.Format("SqlDbType = SqlDbType.{0}", p.SqlDbType);
+
+                // Npgsql infers the type from the value, and fills OUT and INOUT parameters from the row CALL returns.
+                // DbType.DateTime would also force timestamp and reject a UTC value bound for timestamptz.
+                case DatabaseType.PostgreSQL:
+                    return string.Empty;
+
+                case DatabaseType.Oracle when string.Equals(p.DataType, "ref cursor", StringComparison.OrdinalIgnoreCase):
+                    return "OracleDbType = OracleDbType.RefCursor";
+            }
+
+            return ProviderNeutralDbTypes.TryGetValue((p.PropertyType ?? string.Empty).TrimEnd('?'), out var dbType)
+                ? "DbType = DbType." + dbType
+                : string.Empty;
         }
 
         public string WriteTableValuedFunctionDeclareSqlParameter()
         {
             var sb = new StringBuilder(1024);
-            foreach (var p in Parameters.OrderBy(x => x.Ordinal))
+            foreach (var p in CallArguments())
             {
                 sb.AppendLine(string.Format(
                     "        var {0}Param = new ObjectParameter(\"{1}\", typeof({2})) {{ Value = (object){3} }};",
                     p.NameHumanCase,
-                    p.Name.Substring(1),
+                    p.Name.TrimStart('@'),
                     p.PropertyType,
                     p.NameHumanCase +
                     (p.Mode == StoredProcedureParameterMode.In &&
@@ -448,8 +612,9 @@ namespace Efrpg
         public string WriteStoredProcFunctionSqlParameterAnonymousArray(bool includeProcResultParam, bool appendParam, bool includeCancellationToken = false, bool IsEfCore8Plus = false)
         {
             var sb = new StringBuilder(255);
-            var parameters = Parameters.OrderBy(x => x.Ordinal).ToList();
+            var parameters = CallArguments();
             var hasParam = parameters.Any();
+            includeProcResultParam = includeProcResultParam && ReturnsProcResult();
 
             if (!IsEfCore8Plus && includeCancellationToken)
                 sb.Append(", cancellationToken");
@@ -461,7 +626,7 @@ namespace Efrpg
                 sb.Append(" new[] {");
 
             var coalesceNulls = !appendParam && Settings.NeedsNullForgiving();
-            foreach (var p in Parameters.OrderBy(x => x.Ordinal))
+            foreach (var p in parameters)
             {
                 var paramName = string.Format("{0}{1}", p.NameHumanCase, appendParam ? "Param" : string.Empty);
                 // Without the Param suffix these are a TVF's raw arguments to FromSqlRaw's params object[], whose
@@ -487,11 +652,12 @@ namespace Efrpg
 
         public string WriteTableValuedFunctionSqlParameterAnonymousArray()
         {
-            if (Parameters.Count == 0)
+            var parameters = CallArguments();
+            if (parameters.Count == 0)
                 return "new ObjectParameter[] { }";
 
             var sb = new StringBuilder(255);
-            foreach (var p in Parameters.OrderBy(x => x.Ordinal))
+            foreach (var p in parameters)
             {
                 sb.Append(string.Format("{0}Param, ", p.NameHumanCase));
             }

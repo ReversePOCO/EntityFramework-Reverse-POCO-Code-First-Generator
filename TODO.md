@@ -21,6 +21,9 @@ Neither reader implements `ReadStoredProcReturnObjects`, so procedures generate 
 PostgreSQL builds them from the catalogue; SQL Server executes with `SET FMTONLY`. Oracle can be done from
 `ALL_ARGUMENTS`; MySQL has no catalogue for it, so it would need a prepared-statement round trip.
 
+Until then an Oracle `SYS_REFCURSOR` OUT parameter comes back as an `out object` holding the `OracleRefCursor`,
+which can only be read while the connection is still open, so the caller has to open it first.
+
 ## 3. Oracle reads exactly one schema per run
 
 `OracleDatabaseReader` scopes every query to `SYS_CONTEXT('USERENV','CURRENT_SCHEMA')`. SQL Server and
@@ -52,6 +55,9 @@ foreign keys remapped to the synonym names on both sides. Deliberately not cover
 - **One relationship per constraint.** When a constraint is reachable under more than one pair of names - a table
   with two synonyms, or a synonym for a table in the current schema - the reader keeps one pair (real table first,
   then alphabetical), because the generator groups foreign key rows on schema plus constraint name.
+- **Constraint names that collide across schemas.** For the same reason, a constraint behind a synonym that shares
+  its name with one the current schema owns is dropped in favour of the current schema's own. Both entities are
+  still generated; only the dropped relationship's navigation properties are missing.
 
 ## 7. `MySqlToCSharp` maps `tinyint` to `SByte`
 

@@ -198,8 +198,12 @@ using {{this}};{{#newline}}
                     usings.Add("NpgsqlTypes");
                     break;
                 case DatabaseType.MySql:
+                    usings.Add("MySqlConnector");
+                    if (data.hasStoredProcs)
+                        usings.Add("Microsoft.EntityFrameworkCore.Storage"); // GetDbTransaction(), for a procedure with OUT parameters
                     break;
                 case DatabaseType.Oracle:
+                    usings.Add("Oracle.ManagedDataAccess.Client");
                     break;
             }
 
@@ -280,7 +284,7 @@ using {{this}};{{#newline}}
     {{{#newline}}
         if (!optionsBuilder.IsConfigured && _configuration != null){{#newline}}
         {{{#newline}}
-            optionsBuilder.{{UseDatabaseProvider}}(_configuration.GetConnectionString(@""{{ConnectionStringName}}""){{ConnectionStringActions}});{{#newline}}
+            optionsBuilder.{{UseDatabaseProvider}}(_configuration.GetConnectionString(@""{{ConnectionStringName}}""){{#if NeedsServerVersion}}, ServerVersion.AutoDetect(_configuration.GetConnectionString(@""{{ConnectionStringName}}"")){{/if}}{{ConnectionStringActions}});{{#newline}}
 {{#if UseLazyLoadingProxies}}
             optionsBuilder.UseLazyLoadingProxies();{{#newline}}
 {{/if}}
@@ -293,7 +297,7 @@ using {{this}};{{#newline}}
     {{{#newline}}
         if (!optionsBuilder.IsConfigured){{#newline}}
         {{{#newline}}
-            optionsBuilder.{{UseDatabaseProvider}}(@""{{ConnectionString}}""{{ConnectionStringActions}});{{#newline}}
+            optionsBuilder.{{UseDatabaseProvider}}(@""{{ConnectionString}}""{{#if NeedsServerVersion}}, ServerVersion.AutoDetect(@""{{ConnectionString}}""){{/if}}{{ConnectionStringActions}});{{#newline}}
 {{#if UseLazyLoadingProxies}}
             optionsBuilder.UseLazyLoadingProxies();{{#newline}}
 {{/if}}
@@ -424,7 +428,11 @@ using {{this}};{{#newline}}
             .{{FromSql}}(sqlCommand{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrue}}){{#newline}}
             .ToList();{{#newline}}{{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
+{{#if HasProcResult}}
         procResult = (int) procResultParam.Value;{{#newline}}
+{{#else}}
+        procResult = 0;{{#newline}}
+{{/if}}
         return procResultData;{{#newline}}
     }{{#newline}}
 {{/if}}
@@ -435,11 +443,37 @@ using {{this}};{{#newline}}
 {{/if}}
     public int {{FunctionName}}({{WriteStoredProcFunctionParamsTrueFalse}}){{#newline}}
     {{{#newline}}
-{{WriteStoredProcFunctionDeclareSqlParameterTrue}}{{#newline}}
+{{WriteStoredProcFunctionDeclareSqlParameterTrue}}
+{{#if HasProcResult}}
+{{#newline}}
+{{/if}}
+{{#if ExecutesAsCommand}}
+        using (var command = Database.GetDbConnection().CreateCommand()){{#newline}}
+        {{{#newline}}
+            command.CommandText = ""{{CommandText}}"";{{#newline}}
+            command.CommandType = CommandType.StoredProcedure;{{#newline}}
+            command.Transaction = Database.CurrentTransaction?.GetDbTransaction();{{#newline}}
+            command.Parameters.AddRange({{CommandParameters}});{{#newline}}
+            Database.OpenConnection();{{#newline}}
+            try{{#newline}}
+            {{{#newline}}
+                command.ExecuteNonQuery();{{#newline}}
+            }{{#newline}}
+            finally{{#newline}}
+            {{{#newline}}
+                Database.CloseConnection();{{#newline}}
+            }{{#newline}}
+        }{{#newline}}
+{{#else}}
         Database.{{ExecuteSqlCommand}}(""{{ExecWithNoReturnModel}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrue}});{{#newline}}
+{{/if}}
 {{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
+{{#if HasProcResult}}
         return (int)procResultParam.Value;{{#newline}}
+{{#else}}
+        return 0;{{#newline}}
+{{/if}}
     }{{#newline}}
 {{/if}}
 {{#newline}}
@@ -455,10 +489,16 @@ using {{this}};{{#newline}}
     {{{#newline}}
 {{#if HasNoReturnModels}}
 {{WriteStoredProcFunctionDeclareSqlParameterTrue}}
+{{#if HasProcResult}}
 {{#newline}}
+{{/if}}
         await Database.ExecuteSqlRawAsync(""{{AsyncExec}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrueToken}});{{#newline}}
 {{#newline}}
+{{#if HasProcResult}}
         return (int)procResultParam.Value;{{#newline}}
+{{#else}}
+        return 0;{{#newline}}
+{{/if}}
 {{#else}}
 {{WriteStoredProcFunctionDeclareSqlParameterFalse}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
@@ -485,7 +525,7 @@ using {{this}};{{#newline}}
     public IQueryable<{{ReturnClassName}}> {{ExecName}}({{WriteStoredProcFunctionParamsFalseFalse}}){{#newline}}
     {{{#newline}}
         return {{QueryString}}<{{ReturnClassName}}>(){{#newline}}
-            .{{FromSql}}(""SELECT * FROM [{{Schema}}].[{{Name}}]({{WriteStoredProcFunctionSqlAtParams}})""{{WriteTableValuedFunctionSqlParameterAnonymousArray}}){{#newline}}
+            .{{FromSql}}(""SELECT * FROM {{QualifiedName}}({{WriteStoredProcFunctionSqlAtParams}})""{{WriteTableValuedFunctionSqlParameterAnonymousArray}}){{#newline}}
             .AsNoTracking();{{#newline}}
     }{{#newline}}
 {{/each}}
@@ -496,7 +536,7 @@ using {{this}};{{#newline}}
     // Scalar Valued Functions{{#newline}}
 {{#each scalarValuedFunctions}}
 {{#newline}}
-    [DbFunction(""{{Name}}"", ""{{Schema}}"")]{{#newline}}
+    [DbFunction({{DbFunctionArguments}})]{{#newline}}
     public {{ReturnType}} {{ExecName}}({{WriteStoredProcFunctionParamsFalseFalse}}){{#newline}}
     {{{#newline}}
         throw new Exception(""Don't call this directly. Use LINQ to call the scalar valued function as part of your query"");{{#newline}}
@@ -1683,6 +1723,9 @@ public class FakeDbContextTransaction : IDbContextTransaction{{#newline}}
 
             if (data.HasSqlVector)
                 usings.Add("Microsoft.Data.SqlTypes");
+
+            if (data.ColumnTypeNamespaces != null)
+                usings.AddRange(data.ColumnTypeNamespaces);
 
             return usings;
         }

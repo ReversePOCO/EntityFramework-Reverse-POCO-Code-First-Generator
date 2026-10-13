@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.EntityFrameworkCore.Storage;
+using MySqlConnector;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -49,7 +50,7 @@ namespace Efrpg.MySql
         DbSet<PkOrdinalTest> PkOrdinalTests { get; set; } // PkOrdinalTest
         DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // PrincipalKeyChild
         DbSet<SpacedTableName> SpacedTableNames { get; set; } // Spaced Table Name
-        DbSet<Status> Status { get; set; } // Status
+        DbSet<Status1> Status1 { get; set; } // Status
         DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         DbSet<Student> Students { get; set; } // Student
         DbSet<StudentCourse> StudentCourses { get; set; } // StudentCourse
@@ -99,7 +100,7 @@ namespace Efrpg.MySql
         IQueryable<TResult> FromExpression<TResult> (Expression<Func<IQueryable<TResult>>> expression);
 
         // Stored Procedures
-        int CountChildren(int? parentKeyOne, ref int? runningTotal);
+        int CountChildren(int? parentKeyOne, out int? childCount, ref int? runningTotal);
         // CountChildrenAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
         int GetChildrenByParent(int? parentKeyOne, int? parentKeyTwo);
@@ -156,7 +157,7 @@ namespace Efrpg.MySql
         public DbSet<PkOrdinalTest> PkOrdinalTests { get; set; } // PkOrdinalTest
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } // PrincipalKeyChild
         public DbSet<SpacedTableName> SpacedTableNames { get; set; } // Spaced Table Name
-        public DbSet<Status> Status { get; set; } // Status
+        public DbSet<Status1> Status1 { get; set; } // Status
         public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } // StringDefaultEscaping
         public DbSet<Student> Students { get; set; } // Student
         public DbSet<StudentCourse> StudentCourses { get; set; } // StudentCourse
@@ -165,7 +166,7 @@ namespace Efrpg.MySql
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseMySql(@"Server=localhost;Port=3306;Database=EfrpgTest;User Id=root;Password=efrpgTest123;", x => x.UseNetTopologySuite());
+                optionsBuilder.UseMySql(@"Server=localhost;Port=3306;Database=EfrpgTest;User Id=root;Password=efrpgTest123;", ServerVersion.AutoDetect(@"Server=localhost;Port=3306;Database=EfrpgTest;User Id=root;Password=efrpgTest123;"), x => x.UseNetTopologySuite());
                 optionsBuilder.UseLazyLoadingProxies();
             }
         }
@@ -202,7 +203,7 @@ namespace Efrpg.MySql
             modelBuilder.ApplyConfiguration(new PkOrdinalTestConfiguration());
             modelBuilder.ApplyConfiguration(new PrincipalKeyChildConfiguration());
             modelBuilder.ApplyConfiguration(new SpacedTableNameConfiguration());
-            modelBuilder.ApplyConfiguration(new StatusConfiguration());
+            modelBuilder.ApplyConfiguration(new Status1Configuration());
             modelBuilder.ApplyConfiguration(new StringDefaultEscapingConfiguration());
             modelBuilder.ApplyConfiguration(new StudentConfiguration());
             modelBuilder.ApplyConfiguration(new StudentCourseConfiguration());
@@ -214,20 +215,33 @@ namespace Efrpg.MySql
 
 
         // Stored Procedures
-        public int CountChildren(int? parentKeyOne, ref int? runningTotal)
+        public int CountChildren(int? parentKeyOne, out int? childCount, ref int? runningTotal)
         {
-            var parentKeyOneParam = new MySqlParameter { ParameterName = "parentKeyOne", SqlDbType = SqlDbType.int, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault(), Precision = 10, Scale = 0 };
+            var parentKeyOneParam = new MySqlParameter { ParameterName = "parentKeyOne", DbType = DbType.Int32, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!parentKeyOne.HasValue)
                 parentKeyOneParam.Value = DBNull.Value;
 
-            var childCountParam = new MySqlParameter { ParameterName = "childCount", SqlDbType = SqlDbType.int, Direction = ParameterDirection.Output, Precision = 10, Scale = 0 };
-            var runningTotalParam = new MySqlParameter { ParameterName = "runningTotal", SqlDbType = SqlDbType.int, Direction = ParameterDirection.InputOutput, Value = runningTotal.GetValueOrDefault(), Precision = 10, Scale = 0 };
+            var childCountParam = new MySqlParameter { ParameterName = "childCount", DbType = DbType.Int32, Direction = ParameterDirection.Output, Precision = 10, Scale = 0 };
+            var runningTotalParam = new MySqlParameter { ParameterName = "runningTotal", DbType = DbType.Int32, Direction = ParameterDirection.InputOutput, Value = runningTotal.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!runningTotal.HasValue)
                 runningTotalParam.Value = DBNull.Value;
 
-            var procResultParam = new MySqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
-
-            Database.ExecuteSqlRaw("EXEC @procResult = [EfrpgTest].[CountChildren] parentKeyOne, childCount OUTPUT, runningTotal OUTPUT", parentKeyOneParam, childCountParam, runningTotalParam, procResultParam);
+            using (var command = Database.GetDbConnection().CreateCommand())
+            {
+                command.CommandText = "`EfrpgTest`.`CountChildren`";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Transaction = Database.CurrentTransaction?.GetDbTransaction();
+                command.Parameters.AddRange(new[] { parentKeyOneParam, childCountParam, runningTotalParam });
+                Database.OpenConnection();
+                try
+                {
+                    command.ExecuteNonQuery();
+                }
+                finally
+                {
+                    Database.CloseConnection();
+                }
+            }
 
             if (IsSqlParameterNull(childCountParam))
                 childCount = null;
@@ -239,103 +253,91 @@ namespace Efrpg.MySql
             else
                 runningTotal = (int) runningTotalParam.Value;
 
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         // CountChildrenAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
         public int GetChildrenByParent(int? parentKeyOne = null, int? parentKeyTwo = null)
         {
-            var parentKeyOneParam = new MySqlParameter { ParameterName = "parentKeyOne", SqlDbType = SqlDbType.int, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault(), Precision = 10, Scale = 0 };
+            var parentKeyOneParam = new MySqlParameter { ParameterName = "parentKeyOne", DbType = DbType.Int32, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!parentKeyOne.HasValue)
                 parentKeyOneParam.Value = DBNull.Value;
 
-            var parentKeyTwoParam = new MySqlParameter { ParameterName = "parentKeyTwo", SqlDbType = SqlDbType.int, Direction = ParameterDirection.Input, Value = parentKeyTwo.GetValueOrDefault(), Precision = 10, Scale = 0 };
+            var parentKeyTwoParam = new MySqlParameter { ParameterName = "parentKeyTwo", DbType = DbType.Int32, Direction = ParameterDirection.Input, Value = parentKeyTwo.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!parentKeyTwo.HasValue)
                 parentKeyTwoParam.Value = DBNull.Value;
 
-            var procResultParam = new MySqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            Database.ExecuteSqlRaw("CALL `EfrpgTest`.`GetChildrenByParent`(@parentKeyOne, @parentKeyTwo)", parentKeyOneParam, parentKeyTwoParam);
 
-            Database.ExecuteSqlRaw("EXEC @procResult = [EfrpgTest].[GetChildrenByParent] parentKeyOne, parentKeyTwo", parentKeyOneParam, parentKeyTwoParam, procResultParam);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         public async Task<int> GetChildrenByParentAsync(int? parentKeyOne = null, int? parentKeyTwo = null, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var parentKeyOneParam = new MySqlParameter { ParameterName = "parentKeyOne", SqlDbType = SqlDbType.int, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault(), Precision = 10, Scale = 0 };
+            var parentKeyOneParam = new MySqlParameter { ParameterName = "parentKeyOne", DbType = DbType.Int32, Direction = ParameterDirection.Input, Value = parentKeyOne.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!parentKeyOne.HasValue)
                 parentKeyOneParam.Value = DBNull.Value;
 
-            var parentKeyTwoParam = new MySqlParameter { ParameterName = "parentKeyTwo", SqlDbType = SqlDbType.int, Direction = ParameterDirection.Input, Value = parentKeyTwo.GetValueOrDefault(), Precision = 10, Scale = 0 };
+            var parentKeyTwoParam = new MySqlParameter { ParameterName = "parentKeyTwo", DbType = DbType.Int32, Direction = ParameterDirection.Input, Value = parentKeyTwo.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!parentKeyTwo.HasValue)
                 parentKeyTwoParam.Value = DBNull.Value;
 
-            var procResultParam = new MySqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            await Database.ExecuteSqlRawAsync("CALL `EfrpgTest`.`GetChildrenByParent`(@parentKeyOne, @parentKeyTwo)",  new[] {parentKeyOneParam, parentKeyTwoParam}, cancellationToken);
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [EfrpgTest].[GetChildrenByParent] parentKeyOne, parentKeyTwo",  new[] {parentKeyOneParam, parentKeyTwoParam, procResultParam}, cancellationToken);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         public int NoParameters()
         {
-            var procResultParam = new MySqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            Database.ExecuteSqlRaw("CALL `EfrpgTest`.`NoParameters`()");
 
-            Database.ExecuteSqlRaw("EXEC @procResult = [EfrpgTest].[NoParameters] ", procResultParam);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         public async Task<int> NoParametersAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            var procResultParam = new MySqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            await Database.ExecuteSqlRawAsync("CALL `EfrpgTest`.`NoParameters`()", cancellationToken);
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [EfrpgTest].[NoParameters]",  new[] {procResultParam}, cancellationToken);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         public int ReservedWordParams(string selectValue, int? classValue, string namespaceValue)
         {
-            var selectValueParam = new MySqlParameter { ParameterName = "SelectValue", SqlDbType = SqlDbType.varchar, Direction = ParameterDirection.Input, Value = selectValue, Size = 50 };
+            var selectValueParam = new MySqlParameter { ParameterName = "SelectValue", DbType = DbType.String, Direction = ParameterDirection.Input, Value = selectValue, Size = 50 };
             if (selectValueParam.Value == null)
                 selectValueParam.Value = DBNull.Value;
 
-            var classValueParam = new MySqlParameter { ParameterName = "ClassValue", SqlDbType = SqlDbType.int, Direction = ParameterDirection.Input, Value = classValue.GetValueOrDefault(), Precision = 10, Scale = 0 };
+            var classValueParam = new MySqlParameter { ParameterName = "ClassValue", DbType = DbType.Int32, Direction = ParameterDirection.Input, Value = classValue.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!classValue.HasValue)
                 classValueParam.Value = DBNull.Value;
 
-            var namespaceValueParam = new MySqlParameter { ParameterName = "NamespaceValue", SqlDbType = SqlDbType.varchar, Direction = ParameterDirection.Input, Value = namespaceValue, Size = 50 };
+            var namespaceValueParam = new MySqlParameter { ParameterName = "NamespaceValue", DbType = DbType.String, Direction = ParameterDirection.Input, Value = namespaceValue, Size = 50 };
             if (namespaceValueParam.Value == null)
                 namespaceValueParam.Value = DBNull.Value;
 
-            var procResultParam = new MySqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            Database.ExecuteSqlRaw("CALL `EfrpgTest`.`ReservedWordParams`(@SelectValue, @ClassValue, @NamespaceValue)", selectValueParam, classValueParam, namespaceValueParam);
 
-            Database.ExecuteSqlRaw("EXEC @procResult = [EfrpgTest].[ReservedWordParams] SelectValue, ClassValue, NamespaceValue", selectValueParam, classValueParam, namespaceValueParam, procResultParam);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         public async Task<int> ReservedWordParamsAsync(string selectValue, int? classValue, string namespaceValue, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var selectValueParam = new MySqlParameter { ParameterName = "SelectValue", SqlDbType = SqlDbType.varchar, Direction = ParameterDirection.Input, Value = selectValue, Size = 50 };
+            var selectValueParam = new MySqlParameter { ParameterName = "SelectValue", DbType = DbType.String, Direction = ParameterDirection.Input, Value = selectValue, Size = 50 };
             if (selectValueParam.Value == null)
                 selectValueParam.Value = DBNull.Value;
 
-            var classValueParam = new MySqlParameter { ParameterName = "ClassValue", SqlDbType = SqlDbType.int, Direction = ParameterDirection.Input, Value = classValue.GetValueOrDefault(), Precision = 10, Scale = 0 };
+            var classValueParam = new MySqlParameter { ParameterName = "ClassValue", DbType = DbType.Int32, Direction = ParameterDirection.Input, Value = classValue.GetValueOrDefault(), Precision = 10, Scale = 0 };
             if (!classValue.HasValue)
                 classValueParam.Value = DBNull.Value;
 
-            var namespaceValueParam = new MySqlParameter { ParameterName = "NamespaceValue", SqlDbType = SqlDbType.varchar, Direction = ParameterDirection.Input, Value = namespaceValue, Size = 50 };
+            var namespaceValueParam = new MySqlParameter { ParameterName = "NamespaceValue", DbType = DbType.String, Direction = ParameterDirection.Input, Value = namespaceValue, Size = 50 };
             if (namespaceValueParam.Value == null)
                 namespaceValueParam.Value = DBNull.Value;
 
-            var procResultParam = new MySqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            await Database.ExecuteSqlRawAsync("CALL `EfrpgTest`.`ReservedWordParams`(@SelectValue, @ClassValue, @NamespaceValue)",  new[] {selectValueParam, classValueParam, namespaceValueParam}, cancellationToken);
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [EfrpgTest].[ReservedWordParams] SelectValue, ClassValue, NamespaceValue",  new[] {selectValueParam, classValueParam, namespaceValueParam, procResultParam}, cancellationToken);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
 
@@ -415,7 +417,7 @@ namespace Efrpg.MySql
         public DbSet<PkOrdinalTest> PkOrdinalTests { get; set; } = null!; // PkOrdinalTest
         public DbSet<PrincipalKeyChild> PrincipalKeyChilds { get; set; } = null!; // PrincipalKeyChild
         public DbSet<SpacedTableName> SpacedTableNames { get; set; } = null!; // Spaced Table Name
-        public DbSet<Status> Status { get; set; } = null!; // Status
+        public DbSet<Status1> Status1 { get; set; } = null!; // Status
         public DbSet<StringDefaultEscaping> StringDefaultEscapings { get; set; } = null!; // StringDefaultEscaping
         public DbSet<Student> Students { get; set; } = null!; // Student
         public DbSet<StudentCourse> StudentCourses { get; set; } = null!; // StudentCourse
@@ -444,7 +446,7 @@ namespace Efrpg.MySql
             PkOrdinalTests = new FakeDbSet<PkOrdinalTest>("FirstKey", "SecondKey");
             PrincipalKeyChilds = new FakeDbSet<PrincipalKeyChild>("Id");
             SpacedTableNames = new FakeDbSet<SpacedTableName>("Id");
-            Status = new FakeDbSet<Status>("Id");
+            Status1 = new FakeDbSet<Status1>("Id");
             StringDefaultEscapings = new FakeDbSet<StringDefaultEscaping>("Id");
             Students = new FakeDbSet<Student>("Id");
             StudentCourses = new FakeDbSet<StudentCourse>("StudentId", "CourseId");
@@ -670,7 +672,7 @@ namespace Efrpg.MySql
 
         // Stored Procedures
 
-        public int CountChildren(int? parentKeyOne, ref int? runningTotal)
+        public int CountChildren(int? parentKeyOne, out int? childCount, ref int? runningTotal)
         {
             childCount = default(int);
             runningTotal = default(int);
@@ -1599,7 +1601,7 @@ namespace Efrpg.MySql
         public bool IsActive { get; set; } // IsActive
         public string ExternalRef { get; set; } = null!; // ExternalRef (length: 36)
         public DateTime CreatedAt { get; set; } // CreatedAt
-        public DateTime ModifiedAt { get; set; } // ModifiedAt (length: 8)
+        public DateTime ModifiedAt { get; set; } // ModifiedAt
         public decimal? LineTotal { get; private set; } // LineTotal
         public bool? HasQuantity { get; private set; } // HasQuantity
 
@@ -1861,7 +1863,7 @@ namespace Efrpg.MySql
     /// <summary>
     /// Enum lookup with no group column
     /// </summary>
-    public class Status
+    public class Status1
     {
         public int Id { get; set; } // Id (Primary key)
         public string Name { get; set; } = null!; // Name (length: 10)
@@ -1955,7 +1957,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<Airport> builder)
         {
             builder.ToTable("Airport", "EfrpgTest");
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.Name).HasColumnName(@"Name").HasColumnType("varchar(50)").IsRequired().IsUnicode(false).HasMaxLength(50);
@@ -1968,7 +1970,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<AllColumnType> builder)
         {
             builder.ToTable("AllColumnTypes", "EfrpgTest", t => t.HasComment(@"One column per MySQL type, to exercise the language mapping"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.TinyIntBool).HasColumnName(@"TinyIntBool").HasColumnType("tinyint(1)").IsRequired(false).HasComment(@"tinyint(1) is a bool everywhere except information_schema");
@@ -2022,7 +2024,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<CATEGORy> builder)
         {
             builder.ToTable("CATEGORIES", "EfrpgTest");
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.Name).HasColumnName(@"Name").HasColumnType("varchar(50)").IsRequired().IsUnicode(false).HasMaxLength(50);
@@ -2035,7 +2037,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<ChildComposite> builder)
         {
             builder.ToTable("ChildComposite", "EfrpgTest", t => t.HasComment(@"Composite foreign key, unique constraint and a plain index"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.ParentKeyOne).HasColumnName(@"ParentKeyOne").HasColumnType("int").IsRequired();
@@ -2058,7 +2060,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<Course> builder)
         {
             builder.ToTable("Course", "EfrpgTest");
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.Title).HasColumnName(@"Title").HasColumnType("varchar(100)").IsRequired().IsUnicode(false).HasMaxLength(100);
@@ -2071,7 +2073,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<CURRENCy> builder)
         {
             builder.ToTable("CURRENCIES", "EfrpgTest", t => t.HasComment(@"ALLCAPS ending in IES, which naive pluralisation mangles"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.Code).HasColumnName(@"Code").HasColumnType("char(3)").IsRequired().IsFixedLength().IsUnicode(false).HasMaxLength(3);
@@ -2084,16 +2086,16 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<DefaultsAndGenerated> builder)
         {
             builder.ToTable("DefaultsAndGenerated", "EfrpgTest", t => t.HasComment(@"Column defaults, generated columns and ON UPDATE"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.Quantity).HasColumnName(@"Quantity").HasColumnType("int").IsRequired();
             builder.Property(x => x.UnitPrice).HasColumnName(@"UnitPrice").HasColumnType("decimal(18,4)").HasPrecision(18,4).IsRequired();
             builder.Property(x => x.Description).HasColumnName(@"Description").HasColumnType("varchar(50)").IsRequired().IsUnicode(false).HasMaxLength(50);
             builder.Property(x => x.IsActive).HasColumnName(@"IsActive").HasColumnType("tinyint(1)").IsRequired();
-            builder.Property(x => x.ExternalRef).HasColumnName(@"ExternalRef").HasColumnType("char(36)").IsRequired().IsFixedLength().IsUnicode(false).HasMaxLength(36).HasDefaultValueSql(@"uuid()");
+            builder.Property(x => x.ExternalRef).HasColumnName(@"ExternalRef").IsRequired().IsFixedLength().IsUnicode(false).HasMaxLength(36).HasDefaultValueSql(@"uuid()");
             builder.Property(x => x.CreatedAt).HasColumnName(@"CreatedAt").HasColumnType("timestamp").IsRequired().HasDefaultValueSql(@"CURRENT_TIMESTAMP");
-            builder.Property(x => x.ModifiedAt).HasColumnName(@"ModifiedAt").HasColumnType("timestamp").IsRequired().IsFixedLength().IsRowVersion().IsConcurrencyToken().HasDefaultValueSql(@"CURRENT_TIMESTAMP");
+            builder.Property(x => x.ModifiedAt).HasColumnName(@"ModifiedAt").HasColumnType("timestamp").IsRequired().HasDefaultValueSql(@"CURRENT_TIMESTAMP");
             builder.Property(x => x.LineTotal).HasColumnName(@"LineTotal").HasColumnType("decimal(20,4)").HasPrecision(20,4).IsRequired(false).ValueGeneratedOnAddOrUpdate();
             builder.Property(x => x.HasQuantity).HasColumnName(@"HasQuantity").HasColumnType("tinyint(1)").IsRequired(false).ValueGeneratedOnAddOrUpdate();
         }
@@ -2105,7 +2107,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<Employee> builder)
         {
             builder.ToTable("Employee", "EfrpgTest", t => t.HasComment(@"Self referencing foreign key"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.FullName).HasColumnName(@"FullName").HasColumnType("varchar(100)").IsRequired().IsUnicode(false).HasMaxLength(100);
@@ -2124,7 +2126,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<ExpressionDefault> builder)
         {
             builder.ToTable("ExpressionDefault", "EfrpgTest", t => t.HasComment(@"Expression defaults, and literals that must not be mistaken for them"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.ChangedBy).HasColumnName(@"ChangedBy").HasColumnType("varchar(288)").IsRequired().IsUnicode(false).HasMaxLength(288).HasDefaultValueSql(@"current_user()");
@@ -2142,7 +2144,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<Flight> builder)
         {
             builder.ToTable("Flight", "EfrpgTest", t => t.HasComment(@"Two foreign keys onto the same parent"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.DepartureAirportId).HasColumnName(@"DepartureAirportId").HasColumnType("int").IsRequired();
@@ -2163,7 +2165,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<IndexTest> builder)
         {
             builder.ToTable("IndexTest", "EfrpgTest", t => t.HasComment(@"Prefix index, fulltext index, check constraint and a zerofill column"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.UniqueCol).HasColumnName(@"UniqueCol").HasColumnType("int").IsRequired();
@@ -2187,7 +2189,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<OrderStatus> builder)
         {
             builder.ToTable("OrderStatus", "EfrpgTest", t => t.HasComment(@"Reverse engineered into a C# enum"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.Name).HasColumnName(@"Name").HasColumnType("varchar(50)").IsRequired().IsUnicode(false).HasMaxLength(50);
@@ -2202,7 +2204,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<ParentComposite> builder)
         {
             builder.ToTable("ParentComposite", "EfrpgTest", t => t.HasComment(@"Composite primary key"));
-            builder.HasKey(x => new { x.KeyPartOne, x.KeyPartTwo }).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => new { x.KeyPartOne, x.KeyPartTwo }).HasName("PRIMARY");
 
             builder.Property(x => x.KeyPartOne).HasColumnName(@"KeyPartOne").HasColumnType("int").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.KeyPartTwo).HasColumnName(@"KeyPartTwo").HasColumnType("int").IsRequired().ValueGeneratedNever();
@@ -2216,7 +2218,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<Person> builder)
         {
             builder.ToTable("Person", "EfrpgTest");
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.FullName).HasColumnName(@"FullName").HasColumnType("varchar(100)").IsRequired().IsUnicode(false).HasMaxLength(100);
@@ -2229,7 +2231,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<PersonPhoto> builder)
         {
             builder.ToTable("PersonPhoto", "EfrpgTest", t => t.HasComment(@"One to one: the primary key is also the foreign key"));
-            builder.HasKey(x => x.PersonId).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.PersonId).HasName("PRIMARY");
 
             builder.Property(x => x.PersonId).HasColumnName(@"PersonId").HasColumnType("int").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.Photo).HasColumnName(@"Photo").HasColumnType("blob").IsRequired();
@@ -2245,7 +2247,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<PkOrdinalTest> builder)
         {
             builder.ToTable("PkOrdinalTest", "EfrpgTest", t => t.HasComment(@"The key order is not the column order"));
-            builder.HasKey(x => new { x.FirstKey, x.SecondKey }).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => new { x.FirstKey, x.SecondKey }).HasName("PRIMARY");
 
             builder.Property(x => x.Filler).HasColumnName(@"Filler").HasColumnType("varchar(10)").IsRequired(false).IsUnicode(false).HasMaxLength(10);
             builder.Property(x => x.SecondKey).HasColumnName(@"SecondKey").HasColumnType("int").IsRequired().ValueGeneratedNever();
@@ -2259,7 +2261,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<PrincipalKeyChild> builder)
         {
             builder.ToTable("PrincipalKeyChild", "EfrpgTest", t => t.HasComment(@"Foreign key onto a unique constraint, not the primary key"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.ParentUniqueCode).HasColumnName(@"ParentUniqueCode").HasColumnType("varchar(20)").IsRequired().IsUnicode(false).HasMaxLength(20);
@@ -2277,7 +2279,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<SpacedTableName> builder)
         {
             builder.ToTable("Spaced Table Name", "EfrpgTest", t => t.HasComment(@"Identifiers that are legal in MySQL and illegal in C#"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.SpacedColumnName).HasColumnName(@"Spaced Column Name").HasColumnType("varchar(50)").IsRequired(false).IsUnicode(false).HasMaxLength(50);
@@ -2294,12 +2296,12 @@ namespace Efrpg.MySql
     }
 
     // Status
-    public class StatusConfiguration : IEntityTypeConfiguration<Status>
+    public class Status1Configuration : IEntityTypeConfiguration<Status1>
     {
-        public void Configure(EntityTypeBuilder<Status> builder)
+        public void Configure(EntityTypeBuilder<Status1> builder)
         {
             builder.ToTable("Status", "EfrpgTest", t => t.HasComment(@"Enum lookup with no group column"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.Name).HasColumnName(@"Name").HasColumnType("varchar(10)").IsRequired().IsUnicode(false).HasMaxLength(10);
@@ -2312,7 +2314,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<StringDefaultEscaping> builder)
         {
             builder.ToTable("StringDefaultEscaping", "EfrpgTest", t => t.HasComment(@"String defaults containing double quotes and backslashes"));
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.QuoteOnly).HasColumnName(@"QuoteOnly").HasColumnType("varchar(30)").IsRequired().IsUnicode(false).HasMaxLength(30);
@@ -2328,7 +2330,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<Student> builder)
         {
             builder.ToTable("Student", "EfrpgTest");
-            builder.HasKey(x => x.Id).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => x.Id).HasName("PRIMARY");
 
             builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
             builder.Property(x => x.Name).HasColumnName(@"Name").HasColumnType("varchar(100)").IsRequired().IsUnicode(false).HasMaxLength(100);
@@ -2341,7 +2343,7 @@ namespace Efrpg.MySql
         public void Configure(EntityTypeBuilder<StudentCourse> builder)
         {
             builder.ToTable("StudentCourse", "EfrpgTest", t => t.HasComment(@"Nothing but two foreign keys, so it collapses into a many to many"));
-            builder.HasKey(x => new { x.StudentId, x.CourseId }).HasName("PRIMARY").IsClustered();
+            builder.HasKey(x => new { x.StudentId, x.CourseId }).HasName("PRIMARY");
 
             builder.Property(x => x.StudentId).HasColumnName(@"StudentId").HasColumnType("int").IsRequired().ValueGeneratedNever();
             builder.Property(x => x.CourseId).HasColumnName(@"CourseId").HasColumnType("int").IsRequired().ValueGeneratedNever();
@@ -2352,6 +2354,18 @@ namespace Efrpg.MySql
 
             builder.HasIndex(x => x.CourseId).HasDatabaseName("FK_StudentCourse_Course");
         }
+    }
+
+
+    #endregion
+
+    #region Enumerations
+
+    public enum Status
+    {
+        Todo = 1,
+        InProgress = 2,
+        Done = 3,
     }
 
 

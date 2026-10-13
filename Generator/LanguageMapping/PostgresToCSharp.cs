@@ -22,7 +22,7 @@ namespace Efrpg.LanguageMapping
                 { "character varying",           "string" },
                 { "character",                   "string" },
                 { "cid",                         "uint" },
-                { "cidr",                        "NpgsqlInet" },
+                { "cidr",                        "NpgsqlCidr" }, // Npgsql 8; NpgsqlInet is inet's, and EF refuses it on cidr
                 { "circle",                      "NpgsqlCircle" },
                 { "citext",                      "string" },
                 { "date",                        "DateTime" },

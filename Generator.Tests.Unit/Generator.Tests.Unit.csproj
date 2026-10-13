@@ -139,6 +139,9 @@
     <None Include="packages.config" />
     <Compile Include="MustacheUtfTest.cs" />
     <Compile Include="StoredProcedureTests.cs" />
+    <Compile Include="ProviderStoredProcedureSyntaxTests.cs" />
+    <Compile Include="PeriodFilterTests.cs" />
+    <Compile Include="NonSqlServerModelTests.cs" />
     <Compile Include="ViewTests.cs" />
     <Compile Include="WriteToOuterTests.cs" />
     <Compile Include="TestDbContextFilter.cs" />

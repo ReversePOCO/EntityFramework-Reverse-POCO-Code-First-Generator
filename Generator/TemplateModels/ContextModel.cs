@@ -45,6 +45,7 @@ namespace Efrpg.TemplateModels
         public bool OnConfigurationUsesConnectionString { get; set; }
         public string DefaultSchema { get; set; }
         public string UseDatabaseProvider { get; set; }
+        public bool NeedsServerVersion { get; set; }
         public string SqlParameter { get; set; }
         public string SqlParameterValue { get; set; }
         public bool UseLazyLoadingProxies { get; set; }

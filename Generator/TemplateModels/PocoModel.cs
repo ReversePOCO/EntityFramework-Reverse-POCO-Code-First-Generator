@@ -27,6 +27,7 @@ namespace Efrpg.TemplateModels
         public bool HasHierarchyId { get; set; }
         public bool HasSpatial { get; set; }
         public bool HasSqlVector { get; set; }
+        public List<string> ColumnTypeNamespaces { get; set; } = new List<string>();
         public bool HasOwnedEntities { get; set; }
         public List<PocoOwnedEntityModel> OwnedEntities { get; set; }
     }

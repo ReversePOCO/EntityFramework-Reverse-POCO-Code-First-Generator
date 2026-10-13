@@ -268,7 +268,9 @@ namespace Efrpg.Generators
             col.IsUnicode = !(rt.TypeName == "char" || rt.TypeName == "varchar" || rt.TypeName == "text");
             col.IsMaxLength = (rt.TypeName == "ntext");
 
-            col.IsRowVersion = col.IsStoreGenerated && rt.TypeName == "timestamp";
+            // Only SQL Server's timestamp is a rowversion. MySQL's and PostgreSQL's are a date and time, and a MySQL
+            // ON UPDATE CURRENT_TIMESTAMP column is store generated without being a concurrency token.
+            col.IsRowVersion = col.IsStoreGenerated && rt.TypeName == "timestamp" && Settings.DatabaseType == DatabaseType.SqlServer;
             if (col.IsRowVersion)
                 col.MaxLength = 8;
 
@@ -301,10 +303,25 @@ namespace Efrpg.Generators
 
             table.HasNullableColumns = col.IsColumnNullable();
 
-            if (string.IsNullOrEmpty(col.PropertyType))
+            if (string.IsNullOrEmpty(col.PropertyType) || !Ef6CanMap(col.PropertyType))
                 return null;
 
             return col;
+        }
+
+        // The CLR types EF6 maps. Everything else - PostgreSQL's BitArray, PhysicalAddress, arrays and Npgsql's own
+        // types - has no Property() overload, so its configuration did not compile; and BitArray? is not C# 7.3.
+        // SQL Server's EF6 output is left exactly as it was: its mapping only produces types EF6 accepts, plus
+        // HierarchyId from the hierarchyid extension.
+        private static readonly HashSet<string> Ef6MappableTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "bool", "byte", "sbyte", "short", "int", "long", "decimal", "double", "float", "string", "byte[]",
+            "DateTime", "DateTimeOffset", "TimeSpan", "Guid", "DbGeography", "DbGeometry"
+        };
+
+        private static bool Ef6CanMap(string propertyType)
+        {
+            return !Settings.IsEf6() || Settings.DatabaseType == DatabaseType.SqlServer || Ef6MappableTypes.Contains(propertyType);
         }
 
         public void LoadEnums()
@@ -505,6 +522,10 @@ namespace Efrpg.Generators
                 .ToList();
 
             var deleteFilteredOutFiles = Settings.GenerateSeparateFiles;
+            var enumNames = (Settings.Enumerations ?? new List<EnumerationSettings>())
+                .Select(x => x.Name)
+                .Where(x => !string.IsNullOrEmpty(x))
+                .ToList();
 
             foreach (var filterKeyValuePair in FilterList.GetFilters())
             {
@@ -540,7 +561,7 @@ namespace Efrpg.Generators
                     table.NameHumanCase = (Settings.UsePascalCase ? Inflector.ToTitleCase(singularCleanTableName) : singularCleanTableName).Replace(" ", "").Replace("$", "").Replace(".", "");
 
                     if (Settings.PrependSchemaName && string.Compare(table.Schema.DbName, Settings.DefaultSchema, StringComparison.OrdinalIgnoreCase) != 0 && Settings.PrependSchemaNameForTable(table))
-                        table.NameHumanCase = table.Schema.DbName + "_" + table.NameHumanCase;
+                        table.NameHumanCase = NamingHelper.CleanSchemaName(table.Schema.DbName) + "_" + table.NameHumanCase;
 
                     if (filter.IsExcluded(table)) // Retest exclusion after table rename
                     {
@@ -582,6 +603,13 @@ namespace Efrpg.Generators
                             }
                         }
                     }
+
+                    // An enum named after its own table would share the entity's name, and the two cannot live in one
+                    // namespace. The enum's name is the user's, the entity's is derived, so the entity gives way the
+                    // same way one table already does to another.
+                    if (enumNames.Contains(table.NameHumanCase))
+                        table.NameHumanCase = NamingHelper.MakeUnique(table.NameHumanCase,
+                            enumNames.Concat(filter.Tables.Select(x => x.NameHumanCase)).ToList());
 
                     // Create columns for table
                     foreach (var rawTable in rawTables
@@ -958,10 +986,12 @@ namespace Efrpg.Generators
                 var storedProcs = new List<StoredProcedure>();
                 foreach (var proc in procs)
                 {
+                    // An Oracle package member arrives as PACKAGE.MEMBER; ORDER_PKG.TOUCH_PARENT becomes OrderPkgTouchParent.
+                    var name = Settings.DatabaseType == DatabaseType.Oracle ? proc.Name.Replace('.', '_') : proc.Name;
                     var sp = new StoredProcedure
                     {
                         DbName = proc.Name,
-                        NameHumanCase = (Settings.UsePascalCase ? Inflector.ToTitleCase(proc.Name) : proc.Name).Replace(" ", "").Replace("$", ""),
+                        NameHumanCase = (Settings.UsePascalCase ? Inflector.ToTitleCase(name) : name).Replace(" ", "").Replace("$", ""),
                         Schema = new Schema(proc.Schema),
                         IsTableValuedFunction = proc.IsTableValuedFunction,
                         IsScalarValuedFunction = proc.IsScalarValuedFunction,
@@ -969,7 +999,7 @@ namespace Efrpg.Generators
                     };
                     sp.NameHumanCase = NamingHelper.CleanUp(sp.NameHumanCase);
                     if (Settings.PrependSchemaName && (string.Compare(proc.Schema, Settings.DefaultSchema, StringComparison.OrdinalIgnoreCase) != 0) && Settings.PrependSchemaNameForStoredProcedure(sp))
-                        sp.NameHumanCase = proc.Schema + "_" + sp.NameHumanCase;
+                        sp.NameHumanCase = NamingHelper.CleanSchemaName(proc.Schema) + "_" + sp.NameHumanCase;
 
                     sp.Parameters.AddRange(rawStoredProcs
                         .Where(x => x.Parameter != null &&
@@ -1124,6 +1154,11 @@ namespace Efrpg.Generators
                 parameter.SqlDbType = GetStoredProcedureParameterDbType(dataType);
                 parameter.PropertyType = GetPropertyType(dataType);
                 parameter.IsSpatial = IsSpatialType(dataType);
+
+                // A REF CURSOR is never a column, so it has no language mapping. The caller receives the OracleRefCursor
+                // as an object, and can read it only while the connection is still open.
+                if (Settings.DatabaseType == DatabaseType.Oracle && dataType == "ref cursor")
+                    parameter.PropertyType = "object";
             }
 
             var returnDataType = NormaliseDbType(parameter.ReturnDataType);
@@ -1393,6 +1428,8 @@ namespace Efrpg.Generators
                 if (relationship == Relationship.DoNotUse)
                     continue;
 
+                AlignForeignKeyTypes(fkCols, pkCols);
+
                 var pkTableHumanCaseWithSuffix = pkTable.NameHumanCaseWithSuffix();//foreignKey.PkTableHumanCase(pkTable.Suffix);
                 var pkTableHumanCase = foreignKey.PkTableHumanCase(null);
                 var fkHasUniqueConstraint = pkCols.All(x => x.ForeignKey.HasUniqueConstraint) && relationship == Relationship.OneToOne;
@@ -1468,6 +1505,28 @@ namespace Efrpg.Generators
 
                 if (foreignKey.IncludeReverseNavigation)
                     pkTable.AddReverseNavigation(relationship, fkTable, fkPropName, string.Format("{0}.{1}", fkTable.DbName, foreignKey.ConstraintName), foreignKeys);
+            }
+        }
+
+        private static readonly HashSet<string> NumericPropertyTypes = new HashSet<string>
+        {
+            "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong", "decimal", "double", "float"
+        };
+
+        // EF refuses a relationship whose foreign key and principal key have different CLR types. SQL Server and
+        // MySQL insist on matching column types, but Oracle accepts a NUMBER(19) column referencing an unconstrained
+        // NUMBER key (long against decimal), and PostgreSQL an integer referencing a bigint. The foreign key takes the
+        // key's type. Only numeric types are aligned: any other difference was made on purpose, such as an enum.
+        private static void AlignForeignKeyTypes(List<ColumnAndForeignKey> fkCols, List<ColumnAndForeignKey> pkCols)
+        {
+            foreach (var fk in fkCols)
+            {
+                var pk = pkCols.FirstOrDefault(x => x.ForeignKey == fk.ForeignKey);
+                if (pk == null || fk.Column.PropertyType == pk.Column.PropertyType)
+                    continue;
+
+                if (NumericPropertyTypes.Contains(fk.Column.PropertyType) && NumericPropertyTypes.Contains(pk.Column.PropertyType))
+                    fk.Column.PropertyType = pk.Column.PropertyType;
             }
         }
 

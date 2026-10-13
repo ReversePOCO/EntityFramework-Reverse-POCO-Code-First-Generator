@@ -8,6 +8,7 @@
         public string WriteStoredProcFunctionParamsFalseFalse { get; }
         public string Name { get; }
         public string Schema { get; }
+        public string DbFunctionArguments { get; set; } // svf.WriteDbFunctionArguments()
 
         public ScalarValuedFunctionsTemplateData(
             string execName,

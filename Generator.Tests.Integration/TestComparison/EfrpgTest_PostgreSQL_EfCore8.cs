@@ -22,6 +22,7 @@ using System.Data;
 using System.Data.SqlTypes;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -59,7 +60,7 @@ namespace Efrpg.PostgreSQL
         DbSet<IndexTest> IndexTests { get; set; } // index_test
         DbSet<Measurement> Measurements { get; set; } // measurement
         DbSet<Measurement2025> Measurement2025 { get; set; } // measurement_2025
-        DbSet<Mixed Case Schema_SpacedTableName> Mixed Case Schema_SpacedTableNames { get; set; } // Spaced Table Name
+        DbSet<MixedCaseSchema_SpacedTableName> MixedCaseSchema_SpacedTableNames { get; set; } // Spaced Table Name
         DbSet<NoPrimaryKey> NoPrimaryKeys { get; set; } // no_primary_key
         DbSet<OrderStatus> OrderStatus { get; set; } // order_status
         DbSet<ParentComposite> ParentComposites { get; set; } // parent_composite
@@ -188,7 +189,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<IndexTest> IndexTests { get; set; } // index_test
         public DbSet<Measurement> Measurements { get; set; } // measurement
         public DbSet<Measurement2025> Measurement2025 { get; set; } // measurement_2025
-        public DbSet<Mixed Case Schema_SpacedTableName> Mixed Case Schema_SpacedTableNames { get; set; } // Spaced Table Name
+        public DbSet<MixedCaseSchema_SpacedTableName> MixedCaseSchema_SpacedTableNames { get; set; } // Spaced Table Name
         public DbSet<NoPrimaryKey> NoPrimaryKeys { get; set; } // no_primary_key
         public DbSet<OrderStatus> OrderStatus { get; set; } // order_status
         public DbSet<ParentComposite> ParentComposites { get; set; } // parent_composite
@@ -257,7 +258,7 @@ namespace Efrpg.PostgreSQL
             modelBuilder.ApplyConfiguration(new IndexTestConfiguration());
             modelBuilder.ApplyConfiguration(new MeasurementConfiguration());
             modelBuilder.ApplyConfiguration(new Measurement2025Configuration());
-            modelBuilder.ApplyConfiguration(new Mixed Case Schema_SpacedTableNameConfiguration());
+            modelBuilder.ApplyConfiguration(new MixedCaseSchema_SpacedTableNameConfiguration());
             modelBuilder.ApplyConfiguration(new NoPrimaryKeyConfiguration());
             modelBuilder.ApplyConfiguration(new OrderStatusConfiguration());
             modelBuilder.ApplyConfiguration(new ParentCompositeConfiguration());
@@ -293,36 +294,32 @@ namespace Efrpg.PostgreSQL
         // Stored Procedures
         public int TouchParent(int? keyOne = null, int? keyTwo = null)
         {
-            var keyOneParam = new NpgsqlParameter { ParameterName = "key_one", SqlDbType = SqlDbType.integer, Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
+            var keyOneParam = new NpgsqlParameter { ParameterName = "key_one", Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
             if (!keyOne.HasValue)
                 keyOneParam.Value = DBNull.Value;
 
-            var keyTwoParam = new NpgsqlParameter { ParameterName = "key_two", SqlDbType = SqlDbType.integer, Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
+            var keyTwoParam = new NpgsqlParameter { ParameterName = "key_two", Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
             if (!keyTwo.HasValue)
                 keyTwoParam.Value = DBNull.Value;
 
-            var procResultParam = new NpgsqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            Database.ExecuteSqlRaw("CALL \"public\".\"touch_parent\"(@key_one, @key_two)", keyOneParam, keyTwoParam);
 
-            Database.ExecuteSqlRaw("EXEC @procResult = [public].[touch_parent] key_one, key_two", keyOneParam, keyTwoParam, procResultParam);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         public async Task<int> TouchParentAsync(int? keyOne = null, int? keyTwo = null, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var keyOneParam = new NpgsqlParameter { ParameterName = "key_one", SqlDbType = SqlDbType.integer, Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
+            var keyOneParam = new NpgsqlParameter { ParameterName = "key_one", Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
             if (!keyOne.HasValue)
                 keyOneParam.Value = DBNull.Value;
 
-            var keyTwoParam = new NpgsqlParameter { ParameterName = "key_two", SqlDbType = SqlDbType.integer, Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
+            var keyTwoParam = new NpgsqlParameter { ParameterName = "key_two", Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
             if (!keyTwo.HasValue)
                 keyTwoParam.Value = DBNull.Value;
 
-            var procResultParam = new NpgsqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            await Database.ExecuteSqlRawAsync("CALL \"public\".\"touch_parent\"(@key_one, @key_two)",  new[] {keyOneParam, keyTwoParam}, cancellationToken);
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [public].[touch_parent] key_one, key_two",  new[] {keyOneParam, keyTwoParam, procResultParam}, cancellationToken);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
 
@@ -332,7 +329,7 @@ namespace Efrpg.PostgreSQL
         public IQueryable<AllParentsReturnModel> AllParents()
         {
             return Set<AllParentsReturnModel>()
-                .FromSqlRaw("SELECT * FROM [public].[all_parents]()")
+                .FromSqlRaw("SELECT * FROM \"public\".\"all_parents\"()")
                 .AsNoTracking();
         }
 
@@ -340,7 +337,7 @@ namespace Efrpg.PostgreSQL
         public IQueryable<ChildrenOfReturnModel> ChildrenOf(int? parentKeyOne = null, int? parentKeyTwo = null)
         {
             return Set<ChildrenOfReturnModel>()
-                .FromSqlRaw("SELECT * FROM [public].[children_of]({0}, {1})", (object?)parentKeyOne ?? DBNull.Value, (object?)parentKeyTwo ?? DBNull.Value)
+                .FromSqlRaw("SELECT * FROM \"public\".\"children_of\"({0}, {1})", (object?)parentKeyOne ?? DBNull.Value, (object?)parentKeyTwo ?? DBNull.Value)
                 .AsNoTracking();
         }
 
@@ -348,7 +345,7 @@ namespace Efrpg.PostgreSQL
         public IQueryable<CountChildrenReturnModel> CountChildren(int? parentKeyOne, ref int? runningTotal)
         {
             return Set<CountChildrenReturnModel>()
-                .FromSqlRaw("SELECT * FROM [public].[count_children]({0}, {1}, {2})", (object?)parentKeyOne ?? DBNull.Value, (object?)childCount ?? DBNull.Value, (object?)runningTotal ?? DBNull.Value)
+                .FromSqlRaw("SELECT * FROM \"public\".\"count_children\"({0}, {1})", (object?)parentKeyOne ?? DBNull.Value, (object?)runningTotal ?? DBNull.Value)
                 .AsNoTracking();
         }
 
@@ -356,7 +353,7 @@ namespace Efrpg.PostgreSQL
         public IQueryable<ParentNamesReturnModel> ParentNames()
         {
             return Set<ParentNamesReturnModel>()
-                .FromSqlRaw("SELECT * FROM [public].[parent_names]()")
+                .FromSqlRaw("SELECT * FROM \"public\".\"parent_names\"()")
                 .AsNoTracking();
         }
 
@@ -468,7 +465,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<IndexTest> IndexTests { get; set; } = null!; // index_test
         public DbSet<Measurement> Measurements { get; set; } = null!; // measurement
         public DbSet<Measurement2025> Measurement2025 { get; set; } = null!; // measurement_2025
-        public DbSet<Mixed Case Schema_SpacedTableName> Mixed Case Schema_SpacedTableNames { get; set; } = null!; // Spaced Table Name
+        public DbSet<MixedCaseSchema_SpacedTableName> MixedCaseSchema_SpacedTableNames { get; set; } = null!; // Spaced Table Name
         public DbSet<NoPrimaryKey> NoPrimaryKeys { get; set; } = null!; // no_primary_key
         public DbSet<OrderStatus> OrderStatus { get; set; } = null!; // order_status
         public DbSet<ParentComposite> ParentComposites { get; set; } = null!; // parent_composite
@@ -518,7 +515,7 @@ namespace Efrpg.PostgreSQL
             IndexTests = new FakeDbSet<IndexTest>("Id");
             Measurements = new FakeDbSet<Measurement>("CityId", "Logdate");
             Measurement2025 = new FakeDbSet<Measurement2025>("CityId", "Logdate");
-            Mixed Case Schema_SpacedTableNames = new FakeDbSet<Mixed Case Schema_SpacedTableName>("SpacedTableName");
+            MixedCaseSchema_SpacedTableNames = new FakeDbSet<MixedCaseSchema_SpacedTableName>("SpacedTableName");
             NoPrimaryKeys = new FakeDbSet<NoPrimaryKey>("A", "B");
             OrderStatus = new FakeDbSet<OrderStatus>("OrderStatusId");
             ParentComposites = new FakeDbSet<ParentComposite>("KeyOne", "KeyTwo");
@@ -1593,7 +1590,7 @@ namespace Efrpg.PostgreSQL
         public string CharacterVarying { get; set; } // character_varying
         public string CharacterVarying50 { get; set; } // character_varying_50 (length: 50)
         public uint? Cid { get; set; } // cid
-        public NpgsqlInet? Cidr { get; set; } // cidr
+        public NpgsqlCidr? Cidr { get; set; } // cidr
         public NpgsqlCircle? Circle { get; set; } // circle
         public DateTime? Date { get; set; } // date
         public double? DoublePrecision { get; set; } // double_precision
@@ -1973,7 +1970,7 @@ namespace Efrpg.PostgreSQL
     /// <summary>
     /// Every identifier here needs quoting
     /// </summary>
-    public class Mixed Case Schema_SpacedTableName
+    public class MixedCaseSchema_SpacedTableName
     {
         public int SpacedTableName { get; set; } // Spaced Table Name (Primary key)
         public string ColumnWithSpaces { get; set; } // Column With Spaces (length: 50)
@@ -2664,9 +2661,9 @@ namespace Efrpg.PostgreSQL
     }
 
     // Spaced Table Name
-    public class Mixed Case Schema_SpacedTableNameConfiguration : IEntityTypeConfiguration<Mixed Case Schema_SpacedTableName>
+    public class MixedCaseSchema_SpacedTableNameConfiguration : IEntityTypeConfiguration<MixedCaseSchema_SpacedTableName>
     {
-        public void Configure(EntityTypeBuilder<Mixed Case Schema_SpacedTableName> builder)
+        public void Configure(EntityTypeBuilder<MixedCaseSchema_SpacedTableName> builder)
         {
             builder.ToTable("Spaced Table Name", "Mixed Case Schema", t => t.HasComment(@"Every identifier here needs quoting"));
             builder.HasKey(x => x.SpacedTableName).HasName("Spaced Table Name_pkey");
@@ -2948,6 +2945,12 @@ namespace Efrpg.PostgreSQL
     {
         public int? child_id { get; set; }
         public string description { get; set; } = null!;
+    }
+
+    public class CountChildrenReturnModel
+    {
+        public int? child_count { get; set; }
+        public int? running_total { get; set; }
     }
 
     public class ParentNamesReturnModel

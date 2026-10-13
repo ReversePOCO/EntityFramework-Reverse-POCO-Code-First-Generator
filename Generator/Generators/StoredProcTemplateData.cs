@@ -41,6 +41,10 @@ namespace Efrpg.Generators
         public bool HasColumnMappings => ColumnMappings != null && ColumnMappings.Count > 0;
         public bool HasError { get; }
         public string Error { get; }
+        public bool HasProcResult { get; set; } // StoredProcedure.ReturnsProcResult()
+        public bool ExecutesAsCommand { get; set; } // sp.ExecutesAsStoredProcedureCommand()
+        public string CommandText { get; set; } // sp.WriteStoredProcFunctionQualifiedName()
+        public string CommandParameters { get; set; } // new[] { aParam, bParam }
 
         public StoredProcTemplateData(
             bool hasNoReturnModels,

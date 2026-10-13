@@ -83,7 +83,7 @@ namespace Efrpg
                 .Replace("$", string.Empty);
 
             if (string.Compare(PkSchema, Settings.DefaultSchema, StringComparison.OrdinalIgnoreCase) != 0 && Settings.PrependSchemaName)
-                pkTableHumanCase = PkSchema + "_" + pkTableHumanCase;
+                pkTableHumanCase = NamingHelper.CleanSchemaName(PkSchema) + "_" + pkTableHumanCase;
 
             pkTableHumanCase += suffix;
             return pkTableHumanCase;

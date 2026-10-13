@@ -96,8 +96,6 @@ namespace Generator.Tests.Integration
         /// </summary>
         [Test]
         [NonParallelizable]
-        [Ignore("Golden not yet baselined: run once against the efrpg-oracle container, review the output, add " +
-                "TestComparison\\EfrpgTestSyn_Oracle_EfCore8.cs to the project, then remove this attribute.")]
         public void Synonyms()
         {
             // Arrange

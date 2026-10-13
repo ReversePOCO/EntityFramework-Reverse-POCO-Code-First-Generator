@@ -259,5 +259,78 @@ namespace Generator.Tests.Unit
             Assert.AreEqual(1, list.Count);
             Assert.AreEqual($@"builder.HasIndex(x => x.CustomerId).{hasName}(""IX_Orders_Customer"").IncludeProperties(""OrderDate"");", list[0]);
         }
+
+        // IsClustered() is an extension method in Microsoft.EntityFrameworkCore.SqlServer. MySQL reports every InnoDB
+        // primary key as clustered, so emitting it for any other provider produced code that does not compile.
+        private static Table ClusteredTable()
+        {
+            var table = new Table(null, new Schema("EfrpgTest"), "orders", false)
+            {
+                NameHumanCase = "Orders",
+                Indexes = new List<RawIndex>
+                {
+                    new RawIndex("EfrpgTest", "orders", "PRIMARY",     1, "Id",         1, true,  true,  false, true),
+                    new RawIndex("EfrpgTest", "orders", "IX_Customer", 1, "CustomerId", 1, false, false, false, true)
+                }
+            };
+
+            table.Columns.Add(new Column { ParentTable = table, DbName = "Id",         NameHumanCase = "Id",         Config = "test", IsPrimaryKey = true });
+            table.Columns.Add(new Column { ParentTable = table, DbName = "CustomerId", NameHumanCase = "CustomerId", Config = "test" });
+            return table;
+        }
+
+        [TestCase(DatabaseType.SqlServer,  true)]
+        [TestCase(DatabaseType.MySql,      false)]
+        [TestCase(DatabaseType.Oracle,     false)]
+        [TestCase(DatabaseType.PostgreSQL, false)]
+        [TestCase(DatabaseType.SQLite,     false)]
+        public void PrimaryKeyModelBuilder_ClusteredKey_EmitsIsClusteredOnlyForSqlServer(DatabaseType databaseType, bool expected)
+        {
+            // Arrange
+            var savedDatabaseType = Settings.DatabaseType;
+            Settings.DatabaseType = databaseType;
+            Settings.TemplateType = TemplateType.EfCore8;
+            var sut = new GeneratorEfCore(new FileManagementService(new GeneratedTextTransformation()));
+
+            try
+            {
+                // Act
+                var result = sut.PrimaryKeyModelBuilder(ClusteredTable());
+
+                // Assert
+                Assert.That(result.Contains("IsClustered"), Is.EqualTo(expected), result);
+            }
+            finally
+            {
+                Settings.DatabaseType = savedDatabaseType;
+            }
+        }
+
+        [TestCase(DatabaseType.SqlServer,  true)]
+        [TestCase(DatabaseType.MySql,      false)]
+        [TestCase(DatabaseType.Oracle,     false)]
+        [TestCase(DatabaseType.PostgreSQL, false)]
+        [TestCase(DatabaseType.SQLite,     false)]
+        public void IndexModelBuilder_ClusteredIndex_EmitsIsClusteredOnlyForSqlServer(DatabaseType databaseType, bool expected)
+        {
+            // Arrange
+            var savedDatabaseType = Settings.DatabaseType;
+            Settings.DatabaseType = databaseType;
+            Settings.TemplateType = TemplateType.EfCore8;
+            var sut = new GeneratorEfCore(new FileManagementService(new GeneratedTextTransformation()));
+
+            try
+            {
+                // Act
+                var result = string.Join(Environment.NewLine, sut.IndexModelBuilder(ClusteredTable()));
+
+                // Assert
+                Assert.That(result.Contains("IsClustered"), Is.EqualTo(expected), result);
+            }
+            finally
+            {
+                Settings.DatabaseType = savedDatabaseType;
+            }
+        }
     }
 }

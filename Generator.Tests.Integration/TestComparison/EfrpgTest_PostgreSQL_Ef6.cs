@@ -17,7 +17,6 @@ using System.Data.Entity.Infrastructure.Interception;
 using System.Data.Entity.ModelConfiguration;
 using System.Data.Entity.Spatial;
 using System.Data.Entity.Validation;
-using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.Linq;
 using System.Linq.Expressions;
@@ -56,7 +55,7 @@ namespace Efrpg.PostgreSQL
         DbSet<IndexTest> IndexTests { get; set; } // index_test
         DbSet<Measurement> Measurements { get; set; } // measurement
         DbSet<Measurement2025> Measurement2025 { get; set; } // measurement_2025
-        DbSet<Mixed Case Schema_SpacedTableName> Mixed Case Schema_SpacedTableNames { get; set; } // Spaced Table Name
+        DbSet<MixedCaseSchema_SpacedTableName> MixedCaseSchema_SpacedTableNames { get; set; } // Spaced Table Name
         DbSet<NoPrimaryKey> NoPrimaryKeys { get; set; } // no_primary_key
         DbSet<OrderStatus> OrderStatus { get; set; } // order_status
         DbSet<ParentComposite> ParentComposites { get; set; } // parent_composite
@@ -150,7 +149,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<IndexTest> IndexTests { get; set; } // index_test
         public DbSet<Measurement> Measurements { get; set; } // measurement
         public DbSet<Measurement2025> Measurement2025 { get; set; } // measurement_2025
-        public DbSet<Mixed Case Schema_SpacedTableName> Mixed Case Schema_SpacedTableNames { get; set; } // Spaced Table Name
+        public DbSet<MixedCaseSchema_SpacedTableName> MixedCaseSchema_SpacedTableNames { get; set; } // Spaced Table Name
         public DbSet<NoPrimaryKey> NoPrimaryKeys { get; set; } // no_primary_key
         public DbSet<OrderStatus> OrderStatus { get; set; } // order_status
         public DbSet<ParentComposite> ParentComposites { get; set; } // parent_composite
@@ -259,7 +258,7 @@ namespace Efrpg.PostgreSQL
             modelBuilder.Configurations.Add(new IndexTestConfiguration());
             modelBuilder.Configurations.Add(new MeasurementConfiguration());
             modelBuilder.Configurations.Add(new Measurement2025Configuration());
-            modelBuilder.Configurations.Add(new Mixed Case Schema_SpacedTableNameConfiguration());
+            modelBuilder.Configurations.Add(new MixedCaseSchema_SpacedTableNameConfiguration());
             modelBuilder.Configurations.Add(new NoPrimaryKeyConfiguration());
             modelBuilder.Configurations.Add(new OrderStatusConfiguration());
             modelBuilder.Configurations.Add(new ParentCompositeConfiguration());
@@ -352,7 +351,7 @@ namespace Efrpg.PostgreSQL
             modelBuilder.Configurations.Add(new IndexTestConfiguration(schema));
             modelBuilder.Configurations.Add(new MeasurementConfiguration(schema));
             modelBuilder.Configurations.Add(new Measurement2025Configuration(schema));
-            modelBuilder.Configurations.Add(new Mixed Case Schema_SpacedTableNameConfiguration(schema));
+            modelBuilder.Configurations.Add(new MixedCaseSchema_SpacedTableNameConfiguration(schema));
             modelBuilder.Configurations.Add(new NoPrimaryKeyConfiguration(schema));
             modelBuilder.Configurations.Add(new OrderStatusConfiguration(schema));
             modelBuilder.Configurations.Add(new ParentCompositeConfiguration(schema));
@@ -376,36 +375,32 @@ namespace Efrpg.PostgreSQL
         // Stored Procedures
         public int TouchParent(int? keyOne = null, int? keyTwo = null)
         {
-            var keyOneParam = new NpgsqlParameter { ParameterName = "key_one", SqlDbType = SqlDbType.integer, Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
+            var keyOneParam = new NpgsqlParameter { ParameterName = "key_one", Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
             if (!keyOne.HasValue)
                 keyOneParam.Value = DBNull.Value;
 
-            var keyTwoParam = new NpgsqlParameter { ParameterName = "key_two", SqlDbType = SqlDbType.integer, Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
+            var keyTwoParam = new NpgsqlParameter { ParameterName = "key_two", Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
             if (!keyTwo.HasValue)
                 keyTwoParam.Value = DBNull.Value;
 
-            var procResultParam = new NpgsqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            Database.ExecuteSqlCommand(TransactionalBehavior.DoNotEnsureTransaction, "CALL \"public\".\"touch_parent\"(@key_one, @key_two)", keyOneParam, keyTwoParam);
 
-            Database.ExecuteSqlCommand(TransactionalBehavior.DoNotEnsureTransaction, "EXEC @procResult = [public].[touch_parent] key_one, key_two", keyOneParam, keyTwoParam, procResultParam);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
         public async Task<int> TouchParentAsync(int? keyOne = null, int? keyTwo = null, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var keyOneParam = new NpgsqlParameter { ParameterName = "key_one", SqlDbType = SqlDbType.integer, Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
+            var keyOneParam = new NpgsqlParameter { ParameterName = "key_one", Direction = ParameterDirection.Input, Value = keyOne.GetValueOrDefault() };
             if (!keyOne.HasValue)
                 keyOneParam.Value = DBNull.Value;
 
-            var keyTwoParam = new NpgsqlParameter { ParameterName = "key_two", SqlDbType = SqlDbType.integer, Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
+            var keyTwoParam = new NpgsqlParameter { ParameterName = "key_two", Direction = ParameterDirection.Input, Value = keyTwo.GetValueOrDefault() };
             if (!keyTwo.HasValue)
                 keyTwoParam.Value = DBNull.Value;
 
-            var procResultParam = new NpgsqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            await Database.ExecuteSqlCommandAsync(TransactionalBehavior.DoNotEnsureTransaction, "CALL \"public\".\"touch_parent\"(@key_one, @key_two)", cancellationToken, keyOneParam, keyTwoParam);
 
-            await Database.ExecuteSqlCommandAsync(TransactionalBehavior.DoNotEnsureTransaction, "EXEC @procResult = [public].[touch_parent] key_one, key_two", cancellationToken, keyOneParam, keyTwoParam, procResultParam);
-
-            return (int)procResultParam.Value;
+            return 0;
         }
 
 
@@ -423,21 +418,20 @@ namespace Efrpg.PostgreSQL
         [CodeFirstStoreFunctions.DbFunctionDetails(DatabaseSchema = "public")]
         public IQueryable<ChildrenOfReturnModel> ChildrenOf(int? parentKeyOne = null, int? parentKeyTwo = null)
         {
-            var parentKeyOneParam = new ObjectParameter("arent_key_one", typeof(int)) { Value = (object)parentKeyOne ?? DBNull.Value };
-            var parentKeyTwoParam = new ObjectParameter("arent_key_two", typeof(int)) { Value = (object)parentKeyTwo ?? DBNull.Value };
+            var parentKeyOneParam = new ObjectParameter("parent_key_one", typeof(int)) { Value = (object)parentKeyOne ?? DBNull.Value };
+            var parentKeyTwoParam = new ObjectParameter("parent_key_two", typeof(int)) { Value = (object)parentKeyTwo ?? DBNull.Value };
 
-            return ((IObjectContextAdapter)this).ObjectContext.CreateQuery<ChildrenOfReturnModel>("[MyEf6DbContext].[children_of](parent_key_one, parent_key_two)", parentKeyOneParam, parentKeyTwoParam);
+            return ((IObjectContextAdapter)this).ObjectContext.CreateQuery<ChildrenOfReturnModel>("[MyEf6DbContext].[children_of](@parent_key_one, @parent_key_two)", parentKeyOneParam, parentKeyTwoParam);
         }
 
         [DbFunction("MyEf6DbContext", "count_children")]
         [CodeFirstStoreFunctions.DbFunctionDetails(DatabaseSchema = "public")]
         public IQueryable<CountChildrenReturnModel> CountChildren(int? parentKeyOne, ref int? runningTotal)
         {
-            var parentKeyOneParam = new ObjectParameter("arent_key_one", typeof(int)) { Value = (object)parentKeyOne ?? DBNull.Value };
-            var childCountParam = new ObjectParameter("hild_count", typeof(int)) { Value = (object)childCount ?? DBNull.Value };
-            var runningTotalParam = new ObjectParameter("unning_total", typeof(int)) { Value = (object)runningTotal ?? DBNull.Value };
+            var parentKeyOneParam = new ObjectParameter("parent_key_one", typeof(int)) { Value = (object)parentKeyOne ?? DBNull.Value };
+            var runningTotalParam = new ObjectParameter("running_total", typeof(int)) { Value = (object)runningTotal ?? DBNull.Value };
 
-            return ((IObjectContextAdapter)this).ObjectContext.CreateQuery<CountChildrenReturnModel>("[MyEf6DbContext].[count_children](parent_key_one, child_count OUTPUT, running_total OUTPUT)", parentKeyOneParam, childCountParam, runningTotalParam);
+            return ((IObjectContextAdapter)this).ObjectContext.CreateQuery<CountChildrenReturnModel>("[MyEf6DbContext].[count_children](@parent_key_one, @running_total)", parentKeyOneParam, runningTotalParam);
         }
 
         [DbFunction("MyEf6DbContext", "parent_names")]
@@ -530,7 +524,7 @@ namespace Efrpg.PostgreSQL
         public DbSet<IndexTest> IndexTests { get; set; } // index_test
         public DbSet<Measurement> Measurements { get; set; } // measurement
         public DbSet<Measurement2025> Measurement2025 { get; set; } // measurement_2025
-        public DbSet<Mixed Case Schema_SpacedTableName> Mixed Case Schema_SpacedTableNames { get; set; } // Spaced Table Name
+        public DbSet<MixedCaseSchema_SpacedTableName> MixedCaseSchema_SpacedTableNames { get; set; } // Spaced Table Name
         public DbSet<NoPrimaryKey> NoPrimaryKeys { get; set; } // no_primary_key
         public DbSet<OrderStatus> OrderStatus { get; set; } // order_status
         public DbSet<ParentComposite> ParentComposites { get; set; } // parent_composite
@@ -579,7 +573,7 @@ namespace Efrpg.PostgreSQL
             IndexTests = new FakeDbSet<IndexTest>("Id");
             Measurements = new FakeDbSet<Measurement>("CityId", "Logdate");
             Measurement2025 = new FakeDbSet<Measurement2025>("CityId", "Logdate");
-            Mixed Case Schema_SpacedTableNames = new FakeDbSet<Mixed Case Schema_SpacedTableName>("SpacedTableName");
+            MixedCaseSchema_SpacedTableNames = new FakeDbSet<MixedCaseSchema_SpacedTableName>("SpacedTableName");
             NoPrimaryKeys = new FakeDbSet<NoPrimaryKey>("A", "B");
             OrderStatus = new FakeDbSet<OrderStatus>("OrderStatusId");
             ParentComposites = new FakeDbSet<ParentComposite>("KeyOne", "KeyTwo");
@@ -1075,22 +1069,14 @@ namespace Efrpg.PostgreSQL
     public class Allcolumntype
     {
         public long Bigint { get; set; } // bigint (Primary key)
-        public BitArray? Bit1 { get; set; } // bit_1 (length: 1)
-        public BitArray? Bit8 { get; set; } // bit_8 (length: 8)
-        public BitArray? BitVarying { get; set; } // bit_varying (length: 16)
         public bool? Boolean { get; set; } // boolean
-        public NpgsqlBox? Box { get; set; } // box
         public byte[] Bytea { get; set; } // bytea
         public string @Char { get; set; } // char (length: 1)
         public string Character { get; set; } // character (length: 1)
         public string CharacterVarying { get; set; } // character_varying
         public string CharacterVarying50 { get; set; } // character_varying_50 (length: 50)
-        public uint? Cid { get; set; } // cid
-        public NpgsqlInet? Cidr { get; set; } // cidr
-        public NpgsqlCircle? Circle { get; set; } // circle
         public DateTime? Date { get; set; } // date
         public double? DoublePrecision { get; set; } // double_precision
-        public NpgsqlInet? Inet { get; set; } // inet
         public int? Integer { get; set; } // integer
         public TimeSpan? Interval { get; set; } // interval
         public string Json { get; set; } // json
@@ -1099,19 +1085,10 @@ namespace Efrpg.PostgreSQL
         /// A column comment, read through pg_description with objsubid &gt; 0
         /// </summary>
         public string Jsonb { get; set; } // jsonb
-        public NpgsqlLine? Line { get; set; } // line
-        public NpgsqlLSeg? Lseg { get; set; } // lseg
-        public PhysicalAddress? Macaddr { get; set; } // macaddr
-        public PhysicalAddress? Macaddr8 { get; set; } // macaddr8
         public decimal? Money { get; set; } // money
         public string Name { get; set; } // name
         public decimal? Numeric { get; set; } // numeric
         public decimal? Numeric184 { get; set; } // numeric_18_4
-        public uint? Oid { get; set; } // oid
-        public uint[]? Oidvector { get; set; } // oidvector
-        public NpgsqlPath? Path { get; set; } // path
-        public NpgsqlPoint? Point { get; set; } // point
-        public NpgsqlPolygon? Polygon { get; set; } // polygon
         public float? Real { get; set; } // real
         public short? Smallint { get; set; } // smallint
         public string Text { get; set; } // text
@@ -1119,23 +1096,11 @@ namespace Efrpg.PostgreSQL
         public TimeSpan? TimeWithoutTimeZone { get; set; } // time_without_time_zone
         public DateTime? TimestampWithTimeZone { get; set; } // timestamp_with_time_zone
         public DateTime? TimestampWithoutTimeZone { get; set; } // timestamp_without_time_zone
-        public NpgsqlTsQuery? Tsquery { get; set; } // tsquery
-        public NpgsqlTsVector? Tsvector { get; set; } // tsvector
         public Guid? Uuid { get; set; } // uuid
-        public uint? Xid { get; set; } // xid
         public string Xml { get; set; } // xml
         public string Mood { get; set; } // mood
         public int? PositiveInt { get; set; } // positive_int
         public string FullName { get; set; } // full_name
-
-        /// <summary>
-        /// Arrays have no SQL Server equivalent
-        /// </summary>
-        public int[]? IntArray { get; set; } // int_array
-        public string[]? TextArray { get; set; } // text_array
-        public int[]? IntMatrix { get; set; } // int_matrix
-        public NpgsqlRange<int>? Int4Range { get; set; } // int4range
-        public NpgsqlRange<DateTime>? Tstzrange { get; set; } // tstzrange
     }
 
     // category_description
@@ -1290,7 +1255,6 @@ namespace Efrpg.PostgreSQL
         public DateTime CreatedDate { get; set; } // created_date
         public string TheWordNull { get; set; } // the_word_null (length: 20)
         public string ReallyNull { get; set; } // really_null (length: 20)
-        public string[] Tags { get; set; } // tags
         public decimal? LineTotal { get; private set; } // line_total
 
         public DefaultsAndGenerated()
@@ -1301,7 +1265,6 @@ namespace Efrpg.PostgreSQL
             IsActive = true;
             ExternalRef = Guid.NewGuid();
             TheWordNull = "NULL";
-            Tags = Array.Empty<string>();
         }
     }
 
@@ -1352,13 +1315,11 @@ namespace Efrpg.PostgreSQL
         public string AppName { get; set; } // app_name
         public string CreatedText { get; set; } // created_text (length: 30)
         public DateTime DueAt { get; set; } // due_at
-        public int[] Numbers { get; set; } // numbers
         public string LiteralText { get; set; } // literal_text (length: 20)
         public string NumberText { get; set; } // number_text (length: 10)
 
         public ExpressionDefault()
         {
-            Numbers = new int[] { 1, 2 };
             LiteralText = "fallback";
             NumberText = "0";
         }
@@ -1466,7 +1427,7 @@ namespace Efrpg.PostgreSQL
     /// <summary>
     /// Every identifier here needs quoting
     /// </summary>
-    public class Mixed Case Schema_SpacedTableName
+    public class MixedCaseSchema_SpacedTableName
     {
         public int SpacedTableName { get; set; } // Spaced Table Name (Primary key)
         public string ColumnWithSpaces { get; set; } // Column With Spaces (length: 50)
@@ -1717,39 +1678,22 @@ namespace Efrpg.PostgreSQL
             HasKey(x => x.Bigint);
 
             Property(x => x.Bigint).HasColumnName(@"bigint").HasColumnType("bigint").IsRequired().HasDatabaseGeneratedOption(DatabaseGeneratedOption.None);
-            Property(x => x.Bit1).HasColumnName(@"bit_1").HasColumnType("bit").IsOptional().HasMaxLength(1);
-            Property(x => x.Bit8).HasColumnName(@"bit_8").HasColumnType("bit").IsOptional().HasMaxLength(8);
-            Property(x => x.BitVarying).HasColumnName(@"bit_varying").HasColumnType("bit varying").IsOptional().HasMaxLength(16);
             Property(x => x.Boolean).HasColumnName(@"boolean").HasColumnType("boolean").IsOptional();
-            Property(x => x.Box).HasColumnName(@"box").HasColumnType("box").IsOptional();
             Property(x => x.Bytea).HasColumnName(@"bytea").HasColumnType("bytea").IsOptional();
             Property(x => x.@Char).HasColumnName(@"char").HasColumnType("character").IsOptional().HasMaxLength(1);
             Property(x => x.Character).HasColumnName(@"character").HasColumnType("character").IsOptional().HasMaxLength(1);
             Property(x => x.CharacterVarying).HasColumnName(@"character_varying").HasColumnType("character varying").IsOptional();
             Property(x => x.CharacterVarying50).HasColumnName(@"character_varying_50").HasColumnType("character varying").IsOptional().HasMaxLength(50);
-            Property(x => x.Cid).HasColumnName(@"cid").HasColumnType("cid").IsOptional();
-            Property(x => x.Cidr).HasColumnName(@"cidr").HasColumnType("cidr").IsOptional();
-            Property(x => x.Circle).HasColumnName(@"circle").HasColumnType("circle").IsOptional();
             Property(x => x.Date).HasColumnName(@"date").HasColumnType("date").IsOptional();
             Property(x => x.DoublePrecision).HasColumnName(@"double_precision").HasColumnType("double precision").IsOptional();
-            Property(x => x.Inet).HasColumnName(@"inet").HasColumnType("inet").IsOptional();
             Property(x => x.Integer).HasColumnName(@"integer").HasColumnType("integer").IsOptional();
             Property(x => x.Interval).HasColumnName(@"interval").HasColumnType("interval").IsOptional();
             Property(x => x.Json).HasColumnName(@"json").HasColumnType("json").IsOptional();
             Property(x => x.Jsonb).HasColumnName(@"jsonb").HasColumnType("jsonb").IsOptional();
-            Property(x => x.Line).HasColumnName(@"line").HasColumnType("line").IsOptional();
-            Property(x => x.Lseg).HasColumnName(@"lseg").HasColumnType("lseg").IsOptional();
-            Property(x => x.Macaddr).HasColumnName(@"macaddr").HasColumnType("macaddr").IsOptional();
-            Property(x => x.Macaddr8).HasColumnName(@"macaddr8").HasColumnType("macaddr8").IsOptional();
             Property(x => x.Money).HasColumnName(@"money").HasColumnType("money").IsOptional();
             Property(x => x.Name).HasColumnName(@"name").HasColumnType("name").IsOptional();
             Property(x => x.Numeric).HasColumnName(@"numeric").HasColumnType("numeric").IsOptional();
             Property(x => x.Numeric184).HasColumnName(@"numeric_18_4").HasColumnType("numeric").IsOptional().HasPrecision(18,4);
-            Property(x => x.Oid).HasColumnName(@"oid").HasColumnType("oid").IsOptional();
-            Property(x => x.Oidvector).HasColumnName(@"oidvector").HasColumnType("oid[]").IsOptional();
-            Property(x => x.Path).HasColumnName(@"path").HasColumnType("path").IsOptional();
-            Property(x => x.Point).HasColumnName(@"point").HasColumnType("point").IsOptional();
-            Property(x => x.Polygon).HasColumnName(@"polygon").HasColumnType("polygon").IsOptional();
             Property(x => x.Real).HasColumnName(@"real").HasColumnType("real").IsOptional();
             Property(x => x.Smallint).HasColumnName(@"smallint").HasColumnType("smallint").IsOptional();
             Property(x => x.Text).HasColumnName(@"text").HasColumnType("text").IsOptional().IsUnicode(false);
@@ -1757,19 +1701,11 @@ namespace Efrpg.PostgreSQL
             Property(x => x.TimeWithoutTimeZone).HasColumnName(@"time_without_time_zone").HasColumnType("time without time zone").IsOptional();
             Property(x => x.TimestampWithTimeZone).HasColumnName(@"timestamp_with_time_zone").HasColumnType("timestamp with time zone").IsOptional();
             Property(x => x.TimestampWithoutTimeZone).HasColumnName(@"timestamp_without_time_zone").HasColumnType("timestamp without time zone").IsOptional();
-            Property(x => x.Tsquery).HasColumnName(@"tsquery").HasColumnType("tsquery").IsOptional();
-            Property(x => x.Tsvector).HasColumnName(@"tsvector").HasColumnType("tsvector").IsOptional();
             Property(x => x.Uuid).HasColumnName(@"uuid").HasColumnType("uuid").IsOptional();
-            Property(x => x.Xid).HasColumnName(@"xid").HasColumnType("xid").IsOptional();
             Property(x => x.Xml).HasColumnName(@"xml").HasColumnType("xml").IsOptional();
             Property(x => x.Mood).HasColumnName(@"mood").IsOptional(); // .HasColumnType("user-defined") was excluded
             Property(x => x.PositiveInt).HasColumnName(@"positive_int").HasColumnType("integer").IsOptional();
             Property(x => x.FullName).HasColumnName(@"full_name").IsOptional(); // .HasColumnType("user-defined") was excluded
-            Property(x => x.IntArray).HasColumnName(@"int_array").HasColumnType("int4[]").IsOptional();
-            Property(x => x.TextArray).HasColumnName(@"text_array").HasColumnType("text[]").IsOptional();
-            Property(x => x.IntMatrix).HasColumnName(@"int_matrix").HasColumnType("int4[]").IsOptional();
-            Property(x => x.Int4Range).HasColumnName(@"int4range").HasColumnType("int4range").IsOptional();
-            Property(x => x.Tstzrange).HasColumnName(@"tstzrange").HasColumnType("tstzrange").IsOptional();
         }
     }
 
@@ -2005,7 +1941,6 @@ namespace Efrpg.PostgreSQL
             Property(x => x.CreatedDate).HasColumnName(@"created_date").HasColumnType("date").IsRequired();
             Property(x => x.TheWordNull).HasColumnName(@"the_word_null").HasColumnType("character varying").IsOptional().HasMaxLength(20);
             Property(x => x.ReallyNull).HasColumnName(@"really_null").HasColumnType("character varying").IsOptional().HasMaxLength(20);
-            Property(x => x.Tags).HasColumnName(@"tags").HasColumnType("text[]").IsRequired();
             Property(x => x.LineTotal).HasColumnName(@"line_total").HasColumnType("numeric").IsOptional().HasPrecision(20,4).HasDatabaseGeneratedOption(DatabaseGeneratedOption.Computed);
         }
     }
@@ -2068,7 +2003,6 @@ namespace Efrpg.PostgreSQL
             Property(x => x.AppName).HasColumnName(@"app_name").HasColumnType("text").IsOptional().IsUnicode(false);
             Property(x => x.CreatedText).HasColumnName(@"created_text").HasColumnType("character varying").IsOptional().HasMaxLength(30);
             Property(x => x.DueAt).HasColumnName(@"due_at").HasColumnType("timestamp with time zone").IsRequired();
-            Property(x => x.Numbers).HasColumnName(@"numbers").HasColumnType("int4[]").IsRequired();
             Property(x => x.LiteralText).HasColumnName(@"literal_text").HasColumnType("character varying").IsRequired().HasMaxLength(20);
             Property(x => x.NumberText).HasColumnName(@"number_text").HasColumnType("character varying").IsRequired().HasMaxLength(10);
         }
@@ -2232,14 +2166,14 @@ namespace Efrpg.PostgreSQL
     }
 
     // Spaced Table Name
-    public class Mixed Case Schema_SpacedTableNameConfiguration : EntityTypeConfiguration<Mixed Case Schema_SpacedTableName>
+    public class MixedCaseSchema_SpacedTableNameConfiguration : EntityTypeConfiguration<MixedCaseSchema_SpacedTableName>
     {
-        public Mixed Case Schema_SpacedTableNameConfiguration()
+        public MixedCaseSchema_SpacedTableNameConfiguration()
             : this("Mixed Case Schema")
         {
         }
 
-        public Mixed Case Schema_SpacedTableNameConfiguration(string schema)
+        public MixedCaseSchema_SpacedTableNameConfiguration(string schema)
         {
             ToTable("Spaced Table Name", schema);
             HasKey(x => x.SpacedTableName);
@@ -2596,6 +2530,12 @@ namespace Efrpg.PostgreSQL
     {
         public int? child_id { get; set; }
         public string description { get; set; }
+    }
+
+    public class CountChildrenReturnModel
+    {
+        public int? child_count { get; set; }
+        public int? running_total { get; set; }
     }
 
     public class ParentNamesReturnModel

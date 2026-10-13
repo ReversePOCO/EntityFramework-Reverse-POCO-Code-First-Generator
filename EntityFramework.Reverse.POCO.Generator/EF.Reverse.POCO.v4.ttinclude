@@ -2712,7 +2712,14 @@
     {
         public bool IsExcluded(EntityName item)
         {
-            return item.DbName.Contains('.');
+            return item.DbName.Contains('.') && !IsOraclePackageMember(item);
+        }
+
+        // The efrpg tool reports an Oracle package member as PACKAGE.MEMBER. The period is not part of either name, and
+        // the generated call and [DbFunction] quote the two parts separately.
+        private static bool IsOraclePackageMember(EntityName item)
+        {
+            return Settings.DatabaseType == DatabaseType.Oracle && item is StoredProcedure;
         }
     }
 
@@ -2917,7 +2924,7 @@
                 .Replace("$", string.Empty);
 
             if (string.Compare(PkSchema, Settings.DefaultSchema, StringComparison.OrdinalIgnoreCase) != 0 && Settings.PrependSchemaName)
-                pkTableHumanCase = PkSchema + "_" + pkTableHumanCase;
+                pkTableHumanCase = NamingHelper.CleanSchemaName(PkSchema) + "_" + pkTableHumanCase;
 
             pkTableHumanCase += suffix;
             return pkTableHumanCase;
@@ -3134,6 +3141,8 @@
 
             if (filter.IncludeStoredProcedures)
             {
+                // Every EXEC below is T-SQL. Any other provider gets its own call statement in all three places.
+                var returnsProcResult = StoredProcedure.ReturnsProcResult();
                 _storedProcs = filter.StoredProcs
                     .Where(s => s.IsStoredProcedure)
                     .OrderBy(x => x.NameHumanCase)
@@ -3157,11 +3166,15 @@
                         sp.WriteStoredProcFunctionOverloadCall(),
                         sp.WriteStoredProcFunctionSetSqlParameters(false),
                         sp.WriteStoredProcFunctionSetSqlParameters(true),
-                        sp.ReturnModels.Count == 1
+                        !returnsProcResult
+                            ? sp.WriteStoredProcFunctionCallSql()
+                            : sp.ReturnModels.Count == 1
                             ? // exec
                             string.Format("EXEC @procResult = [{0}].[{1}] {2}", sp.Schema.DbName, sp.DbName, sp.WriteStoredProcFunctionSqlAtParams()).Trim()
                             : string.Format("[{0}].[{1}]", sp.Schema.DbName, sp.DbName),
-                        sp.ReturnModels.Count == 0
+                        !returnsProcResult
+                            ? sp.WriteStoredProcFunctionCallSql()
+                            : sp.ReturnModels.Count == 0
                             ? // Async exec
                             string.Format("EXEC @procResult = [{0}].[{1}] {2}", sp.Schema.DbName, sp.DbName, sp.WriteStoredProcFunctionSqlAtParams()).Trim()
                             : sp.ReturnModels.Count == 1
@@ -3177,10 +3190,19 @@
                         sp.WriteStoredProcFunctionDeclareSqlParameter(false),
                         sp.Parameters.OrderBy(x => x.Ordinal).Select(sp.WriteStoredProcSqlParameterName).ToList(),
                         sp.ReturnModels.Count,
-                        string.Format("EXEC @procResult = [{0}].[{1}] {2}", sp.Schema.DbName, sp.DbName, sp.WriteStoredProcFunctionSqlAtParams()),
+                        !returnsProcResult
+                            ? sp.WriteStoredProcFunctionCallSql()
+                            : string.Format("EXEC @procResult = [{0}].[{1}] {2}", sp.Schema.DbName, sp.DbName, sp.WriteStoredProcFunctionSqlAtParams()),
                         !string.IsNullOrEmpty(sp.Error),
                         sp.Error ?? string.Empty
-                    ))
+                    )
+                    {
+                        HasProcResult = returnsProcResult,
+                        ExecutesAsCommand = sp.ExecutesAsStoredProcedureCommand(),
+                        CommandText = sp.WriteStoredProcFunctionQualifiedName(),
+                        CommandParameters = "new[] { " +
+                                            string.Join(", ", sp.Parameters.OrderBy(x => x.Ordinal).Select(sp.WriteStoredProcSqlParameterName)) + " }"
+                    })
                     .ToList();
             }
             else
@@ -3219,7 +3241,10 @@
                         IsEfCore8Plus ? "Entity" : "Query",
                         IsEfCore8Plus ? ".HasNoKey()" : string.Empty,
                         !Settings.StoredProcedureReturnTypes.ContainsKey(tvf.NameHumanCase) && !Settings.StoredProcedureReturnTypes.ContainsKey(tvf.DbName)
-                    ))
+                    )
+                    {
+                        QualifiedName = tvf.WriteStoredProcFunctionQualifiedName()
+                    })
                     .ToList();
 
                 _tableValuedFunctionComplexTypes = filter.StoredProcs
@@ -3258,7 +3283,10 @@
                         svf.WriteStoredProcFunctionParams(false, false),
                         svf.DbName,
                         svf.Schema.DbName
-                    ))
+                    )
+                    {
+                        DbFunctionArguments = svf.WriteDbFunctionArguments()
+                    })
                     .ToList();
             }
             else
@@ -3518,6 +3546,7 @@
                 OnConfigurationUsesConnectionString = Settings.OnConfiguration == OnConfiguration.ConnectionString,
                 DefaultSchema = Settings.DefaultSchema,
                 UseDatabaseProvider = Settings.DatabaseProvider(),
+                NeedsServerVersion = Settings.DatabaseType == DatabaseType.MySql, // Pomelo's UseMySql has no overload without one
                 UseLazyLoadingProxies = Settings.UseLazyLoading && Settings.IsEfCore8Plus(),
                 SqlParameter = Settings.SqlParameter(),
                 SqlParameterValue = Settings.SqlParameterValue(),
@@ -3536,6 +3565,25 @@
             AddCodeWithNullableContext(co, _template.DatabaseContext(), data);
 
             return co;
+        }
+
+        // The namespaces PostgreSQL's own column types live in. In one generated file the context's usings happened to
+        // cover NpgsqlTypes and System.Collections, but nothing imported PhysicalAddress's namespace, and a POCO in a
+        // file of its own had none of them.
+        private static List<string> ColumnTypeNamespaces(Table table)
+        {
+            var namespaces = new List<string>();
+            foreach (var propertyType in table.Columns.Where(x => !x.Hidden).Select(x => x.PropertyType ?? string.Empty))
+            {
+                if (propertyType.StartsWith("BitArray"))
+                    namespaces.Add("System.Collections");
+                else if (propertyType.StartsWith("PhysicalAddress"))
+                    namespaces.Add("System.Net.NetworkInformation");
+                else if (propertyType.StartsWith("Npgsql"))
+                    namespaces.Add("NpgsqlTypes");
+            }
+
+            return namespaces.Distinct().ToList();
         }
 
         private static string GetConnectionStringActions(bool hasSpatialTypes, bool hasHierarchyIdType)
@@ -3720,6 +3768,7 @@
                 InsideClassBody = Settings.WriteInsideClassBody(table),
                 HasHierarchyId = table.Columns.Any(x => x.PropertyType.EndsWith("hierarchyid", StringComparison.InvariantCultureIgnoreCase)),
                 HasSqlVector = table.Columns.Any(x => x.PropertyType.StartsWith("SqlVector", StringComparison.InvariantCultureIgnoreCase)) && Settings.IsEfCore10Plus(),
+                ColumnTypeNamespaces = ColumnTypeNamespaces(table),
                 Columns = columnsQuery
                     .Where(x => !x.Hidden && !x.ExistsInBaseClass)
                     .Select((col, index) => new PocoColumnModel
@@ -4437,7 +4486,9 @@
             col.IsUnicode = !(rt.TypeName == "char" || rt.TypeName == "varchar" || rt.TypeName == "text");
             col.IsMaxLength = (rt.TypeName == "ntext");
 
-            col.IsRowVersion = col.IsStoreGenerated && rt.TypeName == "timestamp";
+            // Only SQL Server's timestamp is a rowversion. MySQL's and PostgreSQL's are a date and time, and a MySQL
+            // ON UPDATE CURRENT_TIMESTAMP column is store generated without being a concurrency token.
+            col.IsRowVersion = col.IsStoreGenerated && rt.TypeName == "timestamp" && Settings.DatabaseType == DatabaseType.SqlServer;
             if (col.IsRowVersion)
                 col.MaxLength = 8;
 
@@ -4470,10 +4521,25 @@
 
             table.HasNullableColumns = col.IsColumnNullable();
 
-            if (string.IsNullOrEmpty(col.PropertyType))
+            if (string.IsNullOrEmpty(col.PropertyType) || !Ef6CanMap(col.PropertyType))
                 return null;
 
             return col;
+        }
+
+        // The CLR types EF6 maps. Everything else - PostgreSQL's BitArray, PhysicalAddress, arrays and Npgsql's own
+        // types - has no Property() overload, so its configuration did not compile; and BitArray? is not C# 7.3.
+        // SQL Server's EF6 output is left exactly as it was: its mapping only produces types EF6 accepts, plus
+        // HierarchyId from the hierarchyid extension.
+        private static readonly HashSet<string> Ef6MappableTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "bool", "byte", "sbyte", "short", "int", "long", "decimal", "double", "float", "string", "byte[]",
+            "DateTime", "DateTimeOffset", "TimeSpan", "Guid", "DbGeography", "DbGeometry"
+        };
+
+        private static bool Ef6CanMap(string propertyType)
+        {
+            return !Settings.IsEf6() || Settings.DatabaseType == DatabaseType.SqlServer || Ef6MappableTypes.Contains(propertyType);
         }
 
         public void LoadEnums()
@@ -4674,6 +4740,10 @@
                 .ToList();
 
             var deleteFilteredOutFiles = Settings.GenerateSeparateFiles;
+            var enumNames = (Settings.Enumerations ?? new List<EnumerationSettings>())
+                .Select(x => x.Name)
+                .Where(x => !string.IsNullOrEmpty(x))
+                .ToList();
 
             foreach (var filterKeyValuePair in FilterList.GetFilters())
             {
@@ -4709,7 +4779,7 @@
                     table.NameHumanCase = (Settings.UsePascalCase ? Inflector.ToTitleCase(singularCleanTableName) : singularCleanTableName).Replace(" ", "").Replace("$", "").Replace(".", "");
 
                     if (Settings.PrependSchemaName && string.Compare(table.Schema.DbName, Settings.DefaultSchema, StringComparison.OrdinalIgnoreCase) != 0 && Settings.PrependSchemaNameForTable(table))
-                        table.NameHumanCase = table.Schema.DbName + "_" + table.NameHumanCase;
+                        table.NameHumanCase = NamingHelper.CleanSchemaName(table.Schema.DbName) + "_" + table.NameHumanCase;
 
                     if (filter.IsExcluded(table)) // Retest exclusion after table rename
                     {
@@ -4751,6 +4821,13 @@
                             }
                         }
                     }
+
+                    // An enum named after its own table would share the entity's name, and the two cannot live in one
+                    // namespace. The enum's name is the user's, the entity's is derived, so the entity gives way the
+                    // same way one table already does to another.
+                    if (enumNames.Contains(table.NameHumanCase))
+                        table.NameHumanCase = NamingHelper.MakeUnique(table.NameHumanCase,
+                            enumNames.Concat(filter.Tables.Select(x => x.NameHumanCase)).ToList());
 
                     // Create columns for table
                     foreach (var rawTable in rawTables
@@ -5127,10 +5204,12 @@
                 var storedProcs = new List<StoredProcedure>();
                 foreach (var proc in procs)
                 {
+                    // An Oracle package member arrives as PACKAGE.MEMBER; ORDER_PKG.TOUCH_PARENT becomes OrderPkgTouchParent.
+                    var name = Settings.DatabaseType == DatabaseType.Oracle ? proc.Name.Replace('.', '_') : proc.Name;
                     var sp = new StoredProcedure
                     {
                         DbName = proc.Name,
-                        NameHumanCase = (Settings.UsePascalCase ? Inflector.ToTitleCase(proc.Name) : proc.Name).Replace(" ", "").Replace("$", ""),
+                        NameHumanCase = (Settings.UsePascalCase ? Inflector.ToTitleCase(name) : name).Replace(" ", "").Replace("$", ""),
                         Schema = new Schema(proc.Schema),
                         IsTableValuedFunction = proc.IsTableValuedFunction,
                         IsScalarValuedFunction = proc.IsScalarValuedFunction,
@@ -5138,7 +5217,7 @@
                     };
                     sp.NameHumanCase = NamingHelper.CleanUp(sp.NameHumanCase);
                     if (Settings.PrependSchemaName && (string.Compare(proc.Schema, Settings.DefaultSchema, StringComparison.OrdinalIgnoreCase) != 0) && Settings.PrependSchemaNameForStoredProcedure(sp))
-                        sp.NameHumanCase = proc.Schema + "_" + sp.NameHumanCase;
+                        sp.NameHumanCase = NamingHelper.CleanSchemaName(proc.Schema) + "_" + sp.NameHumanCase;
 
                     sp.Parameters.AddRange(rawStoredProcs
                         .Where(x => x.Parameter != null &&
@@ -5293,6 +5372,11 @@
                 parameter.SqlDbType = GetStoredProcedureParameterDbType(dataType);
                 parameter.PropertyType = GetPropertyType(dataType);
                 parameter.IsSpatial = IsSpatialType(dataType);
+
+                // A REF CURSOR is never a column, so it has no language mapping. The caller receives the OracleRefCursor
+                // as an object, and can read it only while the connection is still open.
+                if (Settings.DatabaseType == DatabaseType.Oracle && dataType == "ref cursor")
+                    parameter.PropertyType = "object";
             }
 
             var returnDataType = NormaliseDbType(parameter.ReturnDataType);
@@ -5562,6 +5646,8 @@
                 if (relationship == Relationship.DoNotUse)
                     continue;
 
+                AlignForeignKeyTypes(fkCols, pkCols);
+
                 var pkTableHumanCaseWithSuffix = pkTable.NameHumanCaseWithSuffix();//foreignKey.PkTableHumanCase(pkTable.Suffix);
                 var pkTableHumanCase = foreignKey.PkTableHumanCase(null);
                 var fkHasUniqueConstraint = pkCols.All(x => x.ForeignKey.HasUniqueConstraint) && relationship == Relationship.OneToOne;
@@ -5637,6 +5723,28 @@
 
                 if (foreignKey.IncludeReverseNavigation)
                     pkTable.AddReverseNavigation(relationship, fkTable, fkPropName, string.Format("{0}.{1}", fkTable.DbName, foreignKey.ConstraintName), foreignKeys);
+            }
+        }
+
+        private static readonly HashSet<string> NumericPropertyTypes = new HashSet<string>
+        {
+            "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong", "decimal", "double", "float"
+        };
+
+        // EF refuses a relationship whose foreign key and principal key have different CLR types. SQL Server and
+        // MySQL insist on matching column types, but Oracle accepts a NUMBER(19) column referencing an unconstrained
+        // NUMBER key (long against decimal), and PostgreSQL an integer referencing a bigint. The foreign key takes the
+        // key's type. Only numeric types are aligned: any other difference was made on purpose, such as an enum.
+        private static void AlignForeignKeyTypes(List<ColumnAndForeignKey> fkCols, List<ColumnAndForeignKey> pkCols)
+        {
+            foreach (var fk in fkCols)
+            {
+                var pk = pkCols.FirstOrDefault(x => x.ForeignKey == fk.ForeignKey);
+                if (pk == null || fk.Column.PropertyType == pk.Column.PropertyType)
+                    continue;
+
+                if (NumericPropertyTypes.Contains(fk.Column.PropertyType) && NumericPropertyTypes.Contains(pk.Column.PropertyType))
+                    fk.Column.PropertyType = pk.Column.PropertyType;
             }
         }
 
@@ -6576,7 +6684,7 @@
 
                 if (Column.ExcludedHasColumnType.Contains(c.SqlPropertyType))
                     excludedHasColumnType = string.Format(" // .HasColumnType(\"{0}{1}\") was excluded", c.SqlPropertyType, columnTypeParameters);
-                else
+                else if (!IsPomeloGuidStoreTypeOnAString(c))
                     sb.AppendFormat(".HasColumnType(\"{0}{1}\")", c.SqlPropertyType, columnTypeParameters);
 
                 if (Settings.IsEfCore8Plus())
@@ -6669,6 +6777,14 @@
             }
         }
 
+        // char(36) is Pomelo's store type for Guid. Named on a string property it finds no string mapping, EF falls
+        // through to its primitive collection path and building the model throws a NullReferenceException.
+        // IsFixedLength and the length, which are emitted anyway, give the same char(36) column.
+        private static bool IsPomeloGuidStoreTypeOnAString(Column c)
+        {
+            return Settings.DatabaseType == DatabaseType.MySql && c.PropertyType == "string" && c.SqlPropertyType == "char" && c.MaxLength == 36;
+        }
+
         public override string PrimaryKeyModelBuilder(Table t)
         {
             var IsEfCore8Plus = Settings.IsEfCore8Plus();
@@ -6699,7 +6815,8 @@
             sb.Append(indexName);
             sb.Append("\")");
 
-            if (indexesForName.All(x => x.IsClustered))
+            // IsClustered() lives in the SQL Server provider. MySQL reports every InnoDB primary key as clustered.
+            if (Settings.DatabaseType == DatabaseType.SqlServer && indexesForName.All(x => x.IsClustered))
                 sb.Append(IsEfCore8Plus ? ".IsClustered()" : ".ForSqlServerIsClustered()");
 
             sb.Append(";");
@@ -6763,7 +6880,7 @@
                 if (indexesForName.All(x => x.IsUnique) || indexesForName.All(x => x.IsUniqueConstraint))
                     sb.Append(".IsUnique()");
 
-                if (indexesForName.All(x => x.IsClustered))
+                if (Settings.DatabaseType == DatabaseType.SqlServer && indexesForName.All(x => x.IsClustered))
                     sb.Append(isEfCore8Plus ? ".IsClustered()" : ".ForSqlServerIsClustered()");
 
                 var filterDefinition = indexesForName.Select(x => x.FilterDefinition).FirstOrDefault(x => !string.IsNullOrEmpty(x));
@@ -6927,6 +7044,7 @@
         public string WriteStoredProcFunctionParamsFalseFalse { get; }
         public string Name { get; }
         public string Schema { get; }
+        public string DbFunctionArguments { get; set; } // svf.WriteDbFunctionArguments()
 
         public ScalarValuedFunctionsTemplateData(
             string execName,
@@ -6984,6 +7102,10 @@
         public bool HasColumnMappings => ColumnMappings != null && ColumnMappings.Count > 0;
         public bool HasError { get; }
         public string Error { get; }
+        public bool HasProcResult { get; set; } // StoredProcedure.ReturnsProcResult()
+        public bool ExecutesAsCommand { get; set; } // sp.ExecutesAsStoredProcedureCommand()
+        public string CommandText { get; set; } // sp.WriteStoredProcFunctionQualifiedName()
+        public string CommandParameters { get; set; } // new[] { aParam, bParam }
 
         public StoredProcTemplateData(
             bool hasNoReturnModels,
@@ -7106,6 +7228,7 @@
         public string ModelBuilderCommand { get; }
         public string ModelBuilderPostCommand { get; }
         public bool IncludeModelBuilder { get; }
+        public string QualifiedName { get; set; } // tvf.WriteStoredProcFunctionQualifiedName()
         public List<string> ColumnMappings { get; set; } = new List<string>();
         public bool HasColumnMappings => ColumnMappings != null && ColumnMappings.Count > 0;
 
@@ -7804,7 +7927,7 @@
                 { "real",                           "float" },
                 { "rowid",                          "string" },
                 { "timestamp with local time zone", "DateTime" },
-                { "timestamp with time zone",       "DateTime" },
+                { "timestamp with time zone",       "DateTimeOffset" }, // Oracle.EntityFrameworkCore refuses DateTime here
                 { "timestamp",                      "DateTime" },
                 { "urowid",                         "string" },
                 { "varchar2",                       "string" },
@@ -7848,7 +7971,7 @@
                 { "character varying",           "string" },
                 { "character",                   "string" },
                 { "cid",                         "uint" },
-                { "cidr",                        "NpgsqlInet" },
+                { "cidr",                        "NpgsqlCidr" }, // Npgsql 8; NpgsqlInet is inet's, and EF refuses it on cidr
                 { "circle",                      "NpgsqlCircle" },
                 { "citext",                      "string" },
                 { "date",                        "DateTime" },
@@ -11165,6 +11288,17 @@
             return candidate;
         }
 
+        /// <summary>
+        ///     A schema name made fit to prefix a C# identifier, as PrependSchemaName does. The raw name can hold
+        ///     anything a quoted identifier can, such as PostgreSQL's "Mixed Case Schema", which produced a class
+        ///     named Mixed Case Schema_SpacedTableName. Tables, routines and foreign keys must all use this, or a
+        ///     relationship stops finding the entity it points at.
+        /// </summary>
+        public static string CleanSchemaName(string schema)
+        {
+            return CleanUp(schema).Replace(" ", string.Empty).Replace("$", string.Empty);
+        }
+
         public static readonly Func<string, string> CleanUp = (str) =>
         {
             if (string.IsNullOrEmpty(str))
@@ -14117,7 +14251,7 @@ and limitations under the License.
         {
             var willIncludeProcResult = includeProcResult && ReturnModels.Count > 0 && ReturnModels.First().Count > 0;
             var sb = new StringBuilder(255);
-            var data = Parameters.Where(x => x.Mode != StoredProcedureParameterMode.Out).OrderBy(x => x.Ordinal).ToList();
+            var data = Parameters.Where(x => x.Mode != StoredProcedureParameterMode.Out || IsProcedureOutParameter(x)).OrderBy(x => x.Ordinal).ToList();
 
             // When any parameter carries DB default info, use it to determine optional params.
             // Otherwise fall back to the type-based tail heuristic for backward compatibility.
@@ -14184,7 +14318,7 @@ and limitations under the License.
         // Whether the generated method declares this parameter with '?'. It depends on the parameter alone, so every
         // overload, the interface and the fake context agree; otherwise one passes a string? to another's string.
         // A reference type is only annotated under AllowNullStrings, and only when NULL is a legitimate value: its
-        // database default is NULL, or it is INOUT and so comes back NULL whenever the database says so.
+        // database default is NULL, or it is INOUT or OUT and so comes back NULL whenever the database says so.
         // NullableReverseNavigationProperties only controls reverse nav props, not SP parameter types.
         private static bool IsNullableInSignature(StoredProcedureParameter p)
         {
@@ -14194,7 +14328,38 @@ and limitations under the License.
             if (!Settings.AllowNullStrings)
                 return false;
 
-            return p.Mode == StoredProcedureParameterMode.InOut || (p.HasDefault && p.DefaultValue == null);
+            return p.Mode != StoredProcedureParameterMode.In || (p.HasDefault && p.DefaultValue == null);
+        }
+
+        private static bool IsSqlServer()
+        {
+            return Settings.DatabaseType == DatabaseType.SqlServer;
+        }
+
+        // Only SQL Server procedures have a return status, which is what procResult carries. Elsewhere the generated
+        // method still returns int, so one interface or fake fits every provider, and returns 0.
+        public static bool ReturnsProcResult()
+        {
+            return IsSqlServer();
+        }
+
+        // SQL Server reports a procedure's OUTPUT parameter as INOUT, so there OUT only ever marks a function's return
+        // value, which is never an argument. Every other database reports a procedure's OUT parameter as OUT, and the
+        // caller must receive it.
+        private bool IsProcedureOutParameter(StoredProcedureParameter p)
+        {
+            return IsStoredProcedure && p.Mode == StoredProcedureParameterMode.Out && !IsSqlServer();
+        }
+
+        // A PostgreSQL function's OUT parameter is a column of the rows it returns, not something the caller passes.
+        private bool IsResultColumn(StoredProcedureParameter p)
+        {
+            return IsTableValuedFunction && p.Mode == StoredProcedureParameterMode.Out && !IsSqlServer();
+        }
+
+        private List<StoredProcedureParameter> CallArguments()
+        {
+            return Parameters.Where(p => !IsResultColumn(p)).OrderBy(x => x.Ordinal).ToList();
         }
 
         // Converts a StoredProcedureParameter's stored DefaultValue to a valid C# literal.
@@ -14316,7 +14481,8 @@ and limitations under the License.
             var parameterNumber = dataCount;
             foreach (var parameter in data.OrderByDescending(x => x.Ordinal))
             {
-                if (parameter.Mode == StoredProcedureParameterMode.InOut ||
+                // A ref or out argument cannot follow an optional one, so the optional tail stops at the first of them.
+                if (parameter.Mode != StoredProcedureParameterMode.In ||
                     Column.StoredProcedureNotNullable.Contains(parameter.PropertyType.ToLower()))
                 {
                     return parameterNumber == dataCount ? 0 : parameterNumber + 1;
@@ -14344,6 +14510,11 @@ and limitations under the License.
 
         public string WriteStoredProcFunctionSqlAtParams()
         {
+            // Outside SQL Server this only ever lands in an EF6 Entity SQL function call, whose parameters are written
+            // @name and which has no OUTPUT keyword.
+            if (!IsSqlServer())
+                return string.Join(", ", CallArguments().Select(p => "@" + p.Name.TrimStart('@')));
+
             var sb = new StringBuilder(255);
             var n = 1;
             var count = Parameters.Count;
@@ -14358,10 +14529,73 @@ and limitations under the License.
             return sb.ToString();
         }
 
+        // The statement that calls this procedure outside SQL Server, written into a C# string literal. Each shape was
+        // run against the provider's driver through EF Core's ExecuteSqlRaw before it was used here.
+        public string WriteStoredProcFunctionCallSql()
+        {
+            var name = WriteStoredProcFunctionQualifiedName();
+            var parameters = Parameters.OrderBy(x => x.Ordinal).ToList();
+            switch (Settings.DatabaseType)
+            {
+                case DatabaseType.Oracle:
+                    return string.Format("BEGIN {0}({1}); END;", name, string.Join(", ", parameters.Select(p => ":" + p.Name)));
+
+                case DatabaseType.PostgreSQL:
+                    // Npgsql refuses an out-only parameter named in the SQL, and fills it from the row CALL returns.
+                    return string.Format("CALL {0}({1})", name,
+                        string.Join(", ", parameters.Select(p => p.Mode == StoredProcedureParameterMode.Out ? "NULL" : "@" + p.Name)));
+
+                case DatabaseType.MySql:
+                    return string.Format("CALL {0}({1})", name, string.Join(", ", parameters.Select(p => "@" + p.Name)));
+
+                default:
+                    return string.Format("EXEC @procResult = [{0}].[{1}] {2}", Schema.DbName, DbName, WriteStoredProcFunctionSqlAtParams());
+            }
+        }
+
+        // MySqlConnector accepts no direction but Input on a text command, so a CALL cannot return an OUT or INOUT
+        // parameter. Such a procedure runs as a CommandType.StoredProcedure command on EF's own connection instead.
+        public bool ExecutesAsStoredProcedureCommand()
+        {
+            return Settings.DatabaseType == DatabaseType.MySql && Parameters.Any(p => p.Mode != StoredProcedureParameterMode.In);
+        }
+
+        // The schema-qualified name in the database's own quoting. The tool reports an Oracle package member as
+        // PACKAGE.MEMBER, so there each part is quoted on its own. Double quotes are escaped because the result is
+        // written inside a C# string literal.
+        public string WriteStoredProcFunctionQualifiedName()
+        {
+            var parts = new List<string> { Schema.DbName };
+            parts.AddRange(Settings.DatabaseType == DatabaseType.Oracle ? DbName.Split('.') : new[] { DbName });
+
+            switch (Settings.DatabaseType)
+            {
+                case DatabaseType.SqlServer:
+                    return string.Join(".", parts.Select(x => "[" + x + "]"));
+
+                case DatabaseType.MySql:
+                    return string.Join(".", parts.Select(x => "`" + x + "`"));
+
+                default:
+                    return string.Join(".", parts.Select(x => "\\\"" + x + "\\\""));
+            }
+        }
+
+        // The arguments of this scalar function's [DbFunction] attribute. EF quotes a DbFunction name as a single
+        // identifier, so an Oracle package member cannot be called PACKAGE.MEMBER there. Mapped as built in, its quoted
+        // three-part name goes into the SQL exactly as written.
+        public string WriteDbFunctionArguments()
+        {
+            if (Settings.DatabaseType == DatabaseType.Oracle && DbName.Contains('.'))
+                return string.Format("\"{0}\", IsBuiltIn = true", WriteStoredProcFunctionQualifiedName());
+
+            return string.Format("\"{0}\", \"{1}\"", DbName, Schema.DbName);
+        }
+
         public string WriteNetCoreTableValuedFunctionsSqlAtParams()
         {
             var sb = new StringBuilder(255);
-            var count = Parameters.Count;
+            var count = CallArguments().Count;
             for (var n = 0; n < count; n++)
             {
                 sb.AppendFormat("{{{0}}}{1}",
@@ -14391,11 +14625,13 @@ and limitations under the License.
                 var spatialSqlType = isDbGeography ? "SqlGeography" : "SqlGeometry";
                 var spatialUdtName = isDbGeography ? "geography" : "geometry";
 
+                var typeAssignment = isSpatialEf6 ? string.Format("UdtTypeName = \"{0}\"", spatialUdtName) : WriteParameterTypeAssignment(p);
+
                 sb.AppendLine(
                     string.Format("        var {0} = new {1}", WriteStoredProcSqlParameterName(p), Settings.SqlParameter())
                     + string.Format(" {{ ParameterName = \"{0}\", ", p.Name)
-                    + (isSpatialEf6 ? string.Format("UdtTypeName = \"{0}\"", spatialUdtName) : string.Format("SqlDbType = SqlDbType.{0}", p.SqlDbType))
-                    + ", Direction = ParameterDirection."
+                    + (typeAssignment.Length > 0 ? typeAssignment + ", " : string.Empty)
+                    + "Direction = ParameterDirection."
                     + (p.Mode == StoredProcedureParameterMode.In ? "Input" : p.Mode == StoredProcedureParameterMode.InOut ? "InputOutput" : "Output")
                     + (p.Mode != StoredProcedureParameterMode.Out
                         ? ", Value = " + (isSpatialEf6
@@ -14403,6 +14639,7 @@ and limitations under the License.
                             : p.NameHumanCase + getValueOrDefault)
                         : string.Empty)
                     + (p.MaxLength != 0 ? ", Size = " + p.MaxLength : string.Empty)
+                    + (NeedsPlSqlBufferSize(p) ? ", Size = " + PlSqlMaxBufferSize : string.Empty)
                     + ((p.Precision > 0 || p.Scale > 0) ? ", Precision = " + p.Precision + ", Scale = " + p.Scale : string.Empty)
                     + (p.PropertyType.ToLower().Contains("datatable") ? ", TypeName = \"" + p.UserDefinedTypeName + "\"" : string.Empty)
                     + " };");
@@ -14417,25 +14654,86 @@ and limitations under the License.
                 }
             }
 
-            if (includeProcResult && ReturnModels.Count < 2)
+            if (includeProcResult && ReturnModels.Count < 2 && ReturnsProcResult())
             {
                 sb.Append("        var procResultParam = new ");
                 sb.Append(Settings.SqlParameter());
                 sb.AppendLine(" { ParameterName = \"@procResult\", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };");
             }
 
+            // With no procResult line to close them, the declarations end on a blank line of their own, so the call is
+            // set apart the same way whatever kind of parameter came last.
+            var blankLine = Environment.NewLine + Environment.NewLine;
+            if (!ReturnsProcResult() && sb.Length > 0 && !sb.ToString().EndsWith(blankLine))
+                sb.AppendLine();
+
             return sb.ToString();
+        }
+
+        // DbType values that every ADO.NET provider here maps the same way. Oracle needs one on an OUT parameter: with
+        // OracleDbType set instead, ODP.NET hands back OracleDecimal, which the generated (decimal) cast cannot unbox.
+        private static readonly Dictionary<string, string> ProviderNeutralDbTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "bool",           "Boolean" },
+            { "byte",           "Byte" },
+            { "sbyte",          "SByte" },
+            { "short",          "Int16" },
+            { "ushort",         "UInt16" },
+            { "int",            "Int32" },
+            { "uint",           "UInt32" },
+            { "long",           "Int64" },
+            { "ulong",          "UInt64" },
+            { "decimal",        "Decimal" },
+            { "double",         "Double" },
+            { "float",          "Single" },
+            { "string",         "String" },
+            { "DateTime",       "DateTime" },
+            { "DateTimeOffset", "DateTimeOffset" },
+            { "Guid",           "Guid" },
+            { "byte[]",         "Binary" }
+        };
+
+        // PL/SQL's largest VARCHAR2 and RAW. ALL_ARGUMENTS records no length for a procedure's parameter, and ODP.NET
+        // raises ORA-06502 when an OUT string has no buffer to land in.
+        private const int PlSqlMaxBufferSize = 32767;
+
+        private static bool NeedsPlSqlBufferSize(StoredProcedureParameter p)
+        {
+            var propertyType = (p.PropertyType ?? string.Empty).ToLowerInvariant();
+            return Settings.DatabaseType == DatabaseType.Oracle && p.MaxLength == 0 && p.Mode != StoredProcedureParameterMode.In &&
+                   (propertyType == "string" || propertyType == "byte[]");
+        }
+
+        private static string WriteParameterTypeAssignment(StoredProcedureParameter p)
+        {
+            switch (Settings.DatabaseType)
+            {
+                case DatabaseType.SqlServer:
+                    return string.Format("SqlDbType = SqlDbType.{0}", p.SqlDbType);
+
+                // Npgsql infers the type from the value, and fills OUT and INOUT parameters from the row CALL returns.
+                // DbType.DateTime would also force timestamp and reject a UTC value bound for timestamptz.
+                case DatabaseType.PostgreSQL:
+                    return string.Empty;
+
+                case DatabaseType.Oracle when string.Equals(p.DataType, "ref cursor", StringComparison.OrdinalIgnoreCase):
+                    return "OracleDbType = OracleDbType.RefCursor";
+            }
+
+            return ProviderNeutralDbTypes.TryGetValue((p.PropertyType ?? string.Empty).TrimEnd('?'), out var dbType)
+                ? "DbType = DbType." + dbType
+                : string.Empty;
         }
 
         public string WriteTableValuedFunctionDeclareSqlParameter()
         {
             var sb = new StringBuilder(1024);
-            foreach (var p in Parameters.OrderBy(x => x.Ordinal))
+            foreach (var p in CallArguments())
             {
                 sb.AppendLine(string.Format(
                     "        var {0}Param = new ObjectParameter(\"{1}\", typeof({2})) {{ Value = (object){3} }};",
                     p.NameHumanCase,
-                    p.Name.Substring(1),
+                    p.Name.TrimStart('@'),
                     p.PropertyType,
                     p.NameHumanCase +
                     (p.Mode == StoredProcedureParameterMode.In &&
@@ -14450,8 +14748,9 @@ and limitations under the License.
         public string WriteStoredProcFunctionSqlParameterAnonymousArray(bool includeProcResultParam, bool appendParam, bool includeCancellationToken = false, bool IsEfCore8Plus = false)
         {
             var sb = new StringBuilder(255);
-            var parameters = Parameters.OrderBy(x => x.Ordinal).ToList();
+            var parameters = CallArguments();
             var hasParam = parameters.Any();
+            includeProcResultParam = includeProcResultParam && ReturnsProcResult();
 
             if (!IsEfCore8Plus && includeCancellationToken)
                 sb.Append(", cancellationToken");
@@ -14463,7 +14762,7 @@ and limitations under the License.
                 sb.Append(" new[] {");
 
             var coalesceNulls = !appendParam && Settings.NeedsNullForgiving();
-            foreach (var p in Parameters.OrderBy(x => x.Ordinal))
+            foreach (var p in parameters)
             {
                 var paramName = string.Format("{0}{1}", p.NameHumanCase, appendParam ? "Param" : string.Empty);
                 // Without the Param suffix these are a TVF's raw arguments to FromSqlRaw's params object[], whose
@@ -14489,11 +14788,12 @@ and limitations under the License.
 
         public string WriteTableValuedFunctionSqlParameterAnonymousArray()
         {
-            if (Parameters.Count == 0)
+            var parameters = CallArguments();
+            if (parameters.Count == 0)
                 return "new ObjectParameter[] { }";
 
             var sb = new StringBuilder(255);
-            foreach (var p in Parameters.OrderBy(x => x.Ordinal))
+            foreach (var p in parameters)
             {
                 sb.Append(string.Format("{0}Param, ", p.NameHumanCase));
             }
@@ -15321,6 +15621,7 @@ and limitations under the License.
         public bool OnConfigurationUsesConnectionString { get; set; }
         public string DefaultSchema { get; set; }
         public string UseDatabaseProvider { get; set; }
+        public bool NeedsServerVersion { get; set; }
         public string SqlParameter { get; set; }
         public string SqlParameterValue { get; set; }
         public bool UseLazyLoadingProxies { get; set; }
@@ -15450,6 +15751,7 @@ and limitations under the License.
         public bool HasHierarchyId { get; set; }
         public bool HasSpatial { get; set; }
         public bool HasSqlVector { get; set; }
+        public List<string> ColumnTypeNamespaces { get; set; } = new List<string>();
         public bool HasOwnedEntities { get; set; }
         public List<PocoOwnedEntityModel> OwnedEntities { get; set; }
     }
@@ -15706,7 +16008,6 @@ using {{this}};{{#newline}}
                 "System.Data.Entity.Infrastructure.Interception",
                 "System.Data.Entity.Infrastructure.Annotations",
                 "System.ComponentModel.DataAnnotations.Schema",
-                "System.Data.SqlClient",
                 "System.Data.SqlTypes",
                 "System.Threading.Tasks",
                 "System.Threading"
@@ -15734,6 +16035,9 @@ using {{this}};{{#newline}}
                 usings.Add("System.Collections.Generic");
                 usings.Add("System.Data.Entity.Validation");
             }
+
+            if (Settings.DatabaseType == DatabaseType.SqlServer)
+                usings.Add("System.Data.SqlClient");
 
             if (Settings.DatabaseType == DatabaseType.PostgreSQL)
             {
@@ -15925,7 +16229,11 @@ using {{this}};{{#newline}}
 {{#if SingleReturnModel}}
         var procResultData = Database.SqlQuery<{{WriteStoredProcReturnModelName}}>(""{{Exec}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrue}}).ToList();{{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
+{{#if HasProcResult}}
         procResult = (int) procResultParam.Value;{{#newline}}
+{{#else}}
+        procResult = 0;{{#newline}}
+{{/if}}
 {{#else}}
         var procResultData = new {{WriteStoredProcReturnModelName}}();{{#newline}}
         var cmd = Database.Connection.CreateCommand();{{#newline}}
@@ -15963,11 +16271,18 @@ using {{this}};{{#newline}}
 {{/if}}
     public int {{FunctionName}}({{WriteStoredProcFunctionParamsTrueFalse}}){{#newline}}
     {{{#newline}}
-{{WriteStoredProcFunctionDeclareSqlParameterTrue}}{{#newline}}
+{{WriteStoredProcFunctionDeclareSqlParameterTrue}}
+{{#if HasProcResult}}
+{{#newline}}
+{{/if}}
         Database.ExecuteSqlCommand(TransactionalBehavior.DoNotEnsureTransaction, ""{{ExecWithNoReturnModel}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrue}});{{#newline}}
 {{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
+{{#if HasProcResult}}
         return (int)procResultParam.Value;{{#newline}}
+{{#else}}
+        return 0;{{#newline}}
+{{/if}}
     }{{#newline}}
 {{/if}}{{#! if HasReturnModels }}
 {{#newline}}
@@ -15978,10 +16293,16 @@ using {{this}};{{#newline}}
     {{{#newline}}
 {{#if HasNoReturnModels}}
 {{WriteStoredProcFunctionDeclareSqlParameterTrue}}
+{{#if HasProcResult}}
 {{#newline}}
+{{/if}}
         await Database.ExecuteSqlCommandAsync(TransactionalBehavior.DoNotEnsureTransaction, ""{{AsyncExec}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrueToken}});{{#newline}}
 {{#newline}}
+{{#if HasProcResult}}
         return (int)procResultParam.Value;{{#newline}}
+{{#else}}
+        return 0;{{#newline}}
+{{/if}}
 {{#else}}
 {{WriteStoredProcFunctionDeclareSqlParameterFalse}}
 {{#if SingleReturnModel}}
@@ -16091,7 +16412,6 @@ using {{this}};{{#newline}}
                 "System.Data.Entity.Infrastructure",
                 "System.Data.Entity.Infrastructure.Interception",
                 "System.Data.Entity.Infrastructure.Annotations",
-                "System.Data.SqlClient",
                 "System.Data.Entity.Spatial",
                 "System.Data.SqlTypes",
                 "System.Threading.Tasks",
@@ -16117,6 +16437,9 @@ using {{this}};{{#newline}}
                 usings.Add("System.Collections.Generic");
                 usings.Add("System.Data.Entity.Validation");
             }
+
+            if (Settings.DatabaseType == DatabaseType.SqlServer)
+                usings.Add("System.Data.SqlClient");
 
             if (Settings.DatabaseType == DatabaseType.PostgreSQL)
             {
@@ -17094,8 +17417,12 @@ using {{this}};{{#newline}}
                     usings.Add("NpgsqlTypes");
                     break;
                 case DatabaseType.MySql:
+                    usings.Add("MySqlConnector");
+                    if (data.hasStoredProcs)
+                        usings.Add("Microsoft.EntityFrameworkCore.Storage"); // GetDbTransaction(), for a procedure with OUT parameters
                     break;
                 case DatabaseType.Oracle:
+                    usings.Add("Oracle.ManagedDataAccess.Client");
                     break;
             }
 
@@ -17176,7 +17503,7 @@ using {{this}};{{#newline}}
     {{{#newline}}
         if (!optionsBuilder.IsConfigured && _configuration != null){{#newline}}
         {{{#newline}}
-            optionsBuilder.{{UseDatabaseProvider}}(_configuration.GetConnectionString(@""{{ConnectionStringName}}""){{ConnectionStringActions}});{{#newline}}
+            optionsBuilder.{{UseDatabaseProvider}}(_configuration.GetConnectionString(@""{{ConnectionStringName}}""){{#if NeedsServerVersion}}, ServerVersion.AutoDetect(_configuration.GetConnectionString(@""{{ConnectionStringName}}"")){{/if}}{{ConnectionStringActions}});{{#newline}}
 {{#if UseLazyLoadingProxies}}
             optionsBuilder.UseLazyLoadingProxies();{{#newline}}
 {{/if}}
@@ -17189,7 +17516,7 @@ using {{this}};{{#newline}}
     {{{#newline}}
         if (!optionsBuilder.IsConfigured){{#newline}}
         {{{#newline}}
-            optionsBuilder.{{UseDatabaseProvider}}(@""{{ConnectionString}}""{{ConnectionStringActions}});{{#newline}}
+            optionsBuilder.{{UseDatabaseProvider}}(@""{{ConnectionString}}""{{#if NeedsServerVersion}}, ServerVersion.AutoDetect(@""{{ConnectionString}}""){{/if}}{{ConnectionStringActions}});{{#newline}}
 {{#if UseLazyLoadingProxies}}
             optionsBuilder.UseLazyLoadingProxies();{{#newline}}
 {{/if}}
@@ -17320,7 +17647,11 @@ using {{this}};{{#newline}}
             .{{FromSql}}(sqlCommand{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrue}}){{#newline}}
             .ToList();{{#newline}}{{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
+{{#if HasProcResult}}
         procResult = (int) procResultParam.Value;{{#newline}}
+{{#else}}
+        procResult = 0;{{#newline}}
+{{/if}}
         return procResultData;{{#newline}}
     }{{#newline}}
 {{/if}}
@@ -17331,11 +17662,37 @@ using {{this}};{{#newline}}
 {{/if}}
     public int {{FunctionName}}({{WriteStoredProcFunctionParamsTrueFalse}}){{#newline}}
     {{{#newline}}
-{{WriteStoredProcFunctionDeclareSqlParameterTrue}}{{#newline}}
+{{WriteStoredProcFunctionDeclareSqlParameterTrue}}
+{{#if HasProcResult}}
+{{#newline}}
+{{/if}}
+{{#if ExecutesAsCommand}}
+        using (var command = Database.GetDbConnection().CreateCommand()){{#newline}}
+        {{{#newline}}
+            command.CommandText = ""{{CommandText}}"";{{#newline}}
+            command.CommandType = CommandType.StoredProcedure;{{#newline}}
+            command.Transaction = Database.CurrentTransaction?.GetDbTransaction();{{#newline}}
+            command.Parameters.AddRange({{CommandParameters}});{{#newline}}
+            Database.OpenConnection();{{#newline}}
+            try{{#newline}}
+            {{{#newline}}
+                command.ExecuteNonQuery();{{#newline}}
+            }{{#newline}}
+            finally{{#newline}}
+            {{{#newline}}
+                Database.CloseConnection();{{#newline}}
+            }{{#newline}}
+        }{{#newline}}
+{{#else}}
         Database.{{ExecuteSqlCommand}}(""{{ExecWithNoReturnModel}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrue}});{{#newline}}
+{{/if}}
 {{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
+{{#if HasProcResult}}
         return (int)procResultParam.Value;{{#newline}}
+{{#else}}
+        return 0;{{#newline}}
+{{/if}}
     }{{#newline}}
 {{/if}}
 {{#newline}}
@@ -17351,10 +17708,16 @@ using {{this}};{{#newline}}
     {{{#newline}}
 {{#if HasNoReturnModels}}
 {{WriteStoredProcFunctionDeclareSqlParameterTrue}}
+{{#if HasProcResult}}
 {{#newline}}
+{{/if}}
         await Database.ExecuteSqlRawAsync(""{{AsyncExec}}""{{WriteStoredProcFunctionSqlParameterAnonymousArrayTrueToken}});{{#newline}}
 {{#newline}}
+{{#if HasProcResult}}
         return (int)procResultParam.Value;{{#newline}}
+{{#else}}
+        return 0;{{#newline}}
+{{/if}}
 {{#else}}
 {{WriteStoredProcFunctionDeclareSqlParameterFalse}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
@@ -17381,7 +17744,7 @@ using {{this}};{{#newline}}
     public IQueryable<{{ReturnClassName}}> {{ExecName}}({{WriteStoredProcFunctionParamsFalseFalse}}){{#newline}}
     {{{#newline}}
         return {{QueryString}}<{{ReturnClassName}}>(){{#newline}}
-            .{{FromSql}}(""SELECT * FROM [{{Schema}}].[{{Name}}]({{WriteStoredProcFunctionSqlAtParams}})""{{WriteTableValuedFunctionSqlParameterAnonymousArray}}){{#newline}}
+            .{{FromSql}}(""SELECT * FROM {{QualifiedName}}({{WriteStoredProcFunctionSqlAtParams}})""{{WriteTableValuedFunctionSqlParameterAnonymousArray}}){{#newline}}
             .AsNoTracking();{{#newline}}
     }{{#newline}}
 {{/each}}
@@ -17392,7 +17755,7 @@ using {{this}};{{#newline}}
     // Scalar Valued Functions{{#newline}}
 {{#each scalarValuedFunctions}}
 {{#newline}}
-    [DbFunction(""{{Name}}"", ""{{Schema}}"")]{{#newline}}
+    [DbFunction({{DbFunctionArguments}})]{{#newline}}
     public {{ReturnType}} {{ExecName}}({{WriteStoredProcFunctionParamsFalseFalse}}){{#newline}}
     {{{#newline}}
         throw new Exception(""Don't call this directly. Use LINQ to call the scalar valued function as part of your query"");{{#newline}}
@@ -18579,6 +18942,9 @@ public class FakeDbContextTransaction : IDbContextTransaction{{#newline}}
 
             if (data.HasSqlVector)
                 usings.Add("Microsoft.Data.SqlTypes");
+
+            if (data.ColumnTypeNamespaces != null)
+                usings.AddRange(data.ColumnTypeNamespaces);
 
             return usings;
         }
