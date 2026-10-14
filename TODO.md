@@ -3,17 +3,24 @@
 Known gaps, in rough priority order. Everything here is a deliberate omission rather than an unknown, so each
 entry says what is missing and what it would take.
 
-## 1. Nothing compiles the MySQL or Oracle generated output
+## 1. Nothing automatically compiles the MySQL, Oracle or PostgreSQL generated output
 
-`Tester.Integration.EFCore8/9/10` compile the SQL Server output, which is what turns a bad mapping into a build
-failure. MySQL and Oracle have goldens (`Generator.Tests.Integration/TestComparison/*_MySql_*`, `*_Oracle_*`) but
-nothing compiles them, so a method the provider does not define only shows up if somebody reads the diff.
+`Tester.Integration.EFCore8/9/10` and `Tester.Integration.Ef6` compile the SQL Server output, which is what turns a
+bad mapping into a build failure. MySQL, Oracle and PostgreSQL have goldens
+(`Generator.Tests.Integration/TestComparison/*_MySql_*`, `*_Oracle_*`, `*_PostgreSQL_*`) but nothing compiles them,
+so a method the provider does not define only shows up if somebody reads the diff.
 
-That is exactly how `Settings.ColumnIdentity` came to emit `.UseIdentityColumn()` for MySQL, which Pomelo spells
-`UseMySqlIdentityColumn` - the generated code would not have compiled, and no test said so.
+That is how `Settings.ColumnIdentity` came to emit `.UseIdentityColumn()` for MySQL, which Pomelo spells
+`UseMySqlIdentityColumn`. It is also how, until v4.0.53, MySQL, Oracle and PostgreSQL output carried SQL Server's
+stored procedure syntax and `IsClustered()` and did not compile at all, with every test green.
 
-Fix: a tester project per dialect referencing `Pomelo.EntityFrameworkCore.MySql` and
-`Oracle.EntityFrameworkCore`. This is the largest remaining hole.
+As of v4.0.53 each of those goldens compiles against its provider (EF6 at C# 7.3) and builds its model with every
+table and view readable against the test databases. That was checked by hand in scratch projects, so nothing keeps
+it true.
+
+Fix: a tester project per dialect, referencing `Pomelo.EntityFrameworkCore.MySql`, `Oracle.EntityFrameworkCore`
+and `Npgsql.EntityFrameworkCore.PostgreSQL`, that compiles the goldens and builds each model. This is the largest
+remaining hole.
 
 ## 2. No stored procedure return models for MySQL or Oracle
 
@@ -59,13 +66,13 @@ foreign keys remapped to the synonym names on both sides. Deliberately not cover
   its name with one the current schema owns is dropped in favour of the current schema's own. Both entities are
   still generated; only the dropped relationship's navigation properties are missing.
 
-## 7. `MySqlToCSharp` maps `tinyint` to `SByte`
+## 6. `MySqlToCSharp` maps `tinyint` to `SByte`
 
 The BCL name, where every other entry in every mapping uses the C# keyword. It compiles and
 `DatabaseReader.MapType` accepts both spellings, so this is cosmetic. Left alone deliberately: changing it churns
 both copies of the mapping, `DatabaseReaderSqlTests` and a golden, for no behavioural gain.
 
-## 8. Language mapping keys are no longer compared between the two repositories
+## 7. Language mapping keys are no longer compared between the two repositories
 
 `WireContractTests` replaced `ParallelSourceTests` when the tool moved to its own repo, and it deliberately does
 not compare mapping keys: an unknown key legitimately falls through to each mapping's default - that is how every
