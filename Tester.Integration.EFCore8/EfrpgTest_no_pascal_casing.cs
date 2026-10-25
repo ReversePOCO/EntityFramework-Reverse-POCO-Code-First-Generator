@@ -219,8 +219,9 @@ namespace V8_Efrpg_Test
         List<ColourPivotReturnModel> ColourPivot(out int procResult);
         Task<List<ColourPivotReturnModel>> ColourPivotAsync(CancellationToken cancellationToken = default(CancellationToken));
 
-        int ColumnNameAndTypesProc();
-        Task<int> ColumnNameAndTypesProcAsync(CancellationToken cancellationToken = default(CancellationToken));
+        List<ColumnNameAndTypesProcReturnModel> ColumnNameAndTypesProc();
+        List<ColumnNameAndTypesProcReturnModel> ColumnNameAndTypesProc(out int procResult);
+        Task<List<ColumnNameAndTypesProcReturnModel>> ColumnNameAndTypesProcAsync(CancellationToken cancellationToken = default(CancellationToken));
 
         int ConvertToString(int? someValue, ref string someString);
         // ConvertToStringAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
@@ -276,6 +277,7 @@ namespace V8_Efrpg_Test
         int MinTripSequenceStartNull(ref DateTime? minTripSequenceStartParam);
         // MinTripSequenceStartNullAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
+        // Unable to determine return model for 'MultipleReturnColumnsFromTempTable'. Error: Invalid object name '#temp'.
         int MultipleReturnColumnsFromTempTable();
         Task<int> MultipleReturnColumnsFromTempTableAsync(CancellationToken cancellationToken = default(CancellationToken));
 
@@ -298,11 +300,13 @@ namespace V8_Efrpg_Test
         List<sp_NullableStringReproReturnModel> sp_NullableStringRepro(out int procResult);
         Task<List<sp_NullableStringReproReturnModel>> sp_NullableStringReproAsync(CancellationToken cancellationToken = default(CancellationToken));
 
-        int SpatialTypesNoParams();
-        Task<int> SpatialTypesNoParamsAsync(CancellationToken cancellationToken = default(CancellationToken));
+        List<SpatialTypesNoParamsReturnModel> SpatialTypesNoParams();
+        List<SpatialTypesNoParamsReturnModel> SpatialTypesNoParams(out int procResult);
+        Task<List<SpatialTypesNoParamsReturnModel>> SpatialTypesNoParamsAsync(CancellationToken cancellationToken = default(CancellationToken));
 
-        int SpatialTypesWithParams(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography);
-        Task<int> SpatialTypesWithParamsAsync(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography, CancellationToken cancellationToken = default(CancellationToken));
+        List<SpatialTypesWithParamsReturnModel> SpatialTypesWithParams(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography);
+        List<SpatialTypesWithParamsReturnModel> SpatialTypesWithParams(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography, out int procResult);
+        Task<List<SpatialTypesWithParamsReturnModel>> SpatialTypesWithParamsAsync(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography, CancellationToken cancellationToken = default(CancellationToken));
 
         List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string clientNameNull, string clientNameMaxNull, string clientDesc, string clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull);
         List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId, int? userIdNull, string clientName, string clientNameNull, string clientNameMaxNull, string clientDesc, string clientDescNull, decimal? decimalValue, decimal? decimalValueNull, decimal? money, decimal? moneyNull, decimal? smallMoney, decimal? smallMoneyNull, float? realValue, float? realValueNull, double? floatValue, double? floatValueNull, out int procResult);
@@ -368,6 +372,7 @@ namespace V8_Efrpg_Test
         List<XmlDataV1ReturnModel> XmlDataV1(out int procResult);
         Task<List<XmlDataV1ReturnModel>> XmlDataV1Async(CancellationToken cancellationToken = default(CancellationToken));
 
+        // Unable to determine return model for 'XmlDataV2'. Error: Mutator 'modify()' on '@someXml' cannot be called on a null value.
         int XmlDataV2();
         Task<int> XmlDataV2Async(CancellationToken cancellationToken = default(CancellationToken));
 
@@ -684,6 +689,15 @@ namespace V8_Efrpg_Test
             modelBuilder.Entity<aSimpleExampleReturnModel>().HasNoKey();
             modelBuilder.Entity<CheckIfApplicationIsCompleteReturnModel>().HasNoKey();
             modelBuilder.Entity<ColourPivotReturnModel>().HasNoKey();
+            modelBuilder.Entity<ColumnNameAndTypesProcReturnModel>().HasNoKey();
+            modelBuilder.Entity<ColumnNameAndTypesProcReturnModel>().Property(e => e.adecimal).HasPrecision(18, 0);
+            modelBuilder.Entity<ColumnNameAndTypesProcReturnModel>().Property(e => e.adecimal_19_4).HasPrecision(19, 4);
+            modelBuilder.Entity<ColumnNameAndTypesProcReturnModel>().Property(e => e.adecimal_10_3).HasPrecision(10, 3);
+            modelBuilder.Entity<ColumnNameAndTypesProcReturnModel>().Property(e => e.anumeric).HasPrecision(18, 0);
+            modelBuilder.Entity<ColumnNameAndTypesProcReturnModel>().Property(e => e.anumeric_5_2).HasPrecision(5, 2);
+            modelBuilder.Entity<ColumnNameAndTypesProcReturnModel>().Property(e => e.anumeric_11_3).HasPrecision(11, 3);
+            modelBuilder.Entity<ColumnNameAndTypesProcReturnModel>().Property(e => e.amoney).HasPrecision(19, 4);
+            modelBuilder.Entity<ColumnNameAndTypesProcReturnModel>().Property(e => e.asmallmoney).HasPrecision(10, 4);
             modelBuilder.Entity<dbo_proc_data_from_ffrsReturnModel>().HasNoKey();
             modelBuilder.Entity<dbo_proc_data_from_ffrs_and_dboReturnModel>().HasNoKey();
             modelBuilder.Entity<DSOpeProcReturnModel>().HasNoKey();
@@ -695,6 +709,8 @@ namespace V8_Efrpg_Test
             modelBuilder.Entity<GetSmallDecimalTestReturnModel>().HasNoKey();
             modelBuilder.Entity<GetSmallDecimalTestReturnModel>().Property(e => e.KoeffVed).HasPrecision(4, 4);
             modelBuilder.Entity<sp_NullableStringReproReturnModel>().HasNoKey();
+            modelBuilder.Entity<SpatialTypesNoParamsReturnModel>().HasNoKey();
+            modelBuilder.Entity<SpatialTypesWithParamsReturnModel>().HasNoKey();
             modelBuilder.Entity<StoredProcWithDefaultsReturnModel>().HasNoKey();
             modelBuilder.Entity<stp_multiple_identical_resultsReturnModel>().HasNoKey();
             modelBuilder.Entity<stp_no_params_testReturnModel>().HasNoKey();
@@ -964,22 +980,32 @@ namespace V8_Efrpg_Test
             return procResultData;
         }
 
-        public int ColumnNameAndTypesProc()
+        public List<ColumnNameAndTypesProcReturnModel> ColumnNameAndTypesProc()
         {
-            var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
-
-            Database.ExecuteSqlRaw("EXEC @procResult = [dbo].[ColumnNameAndTypesProc] ", procResultParam);
-
-            return (int)procResultParam.Value;
+            int procResult;
+            return ColumnNameAndTypesProc(out procResult);
         }
 
-        public async Task<int> ColumnNameAndTypesProcAsync(CancellationToken cancellationToken = default(CancellationToken))
+        public List<ColumnNameAndTypesProcReturnModel> ColumnNameAndTypesProc(out int procResult)
         {
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            const string sqlCommand = "EXEC @procResult = [dbo].[ColumnNameAndTypesProc]";
+            var procResultData = Set<ColumnNameAndTypesProcReturnModel>()
+                .FromSqlRaw(sqlCommand, procResultParam)
+                .ToList();
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[ColumnNameAndTypesProc]",  new[] {procResultParam}, cancellationToken);
+            procResult = (int) procResultParam.Value;
+            return procResultData;
+        }
 
-            return (int)procResultParam.Value;
+        public async Task<List<ColumnNameAndTypesProcReturnModel>> ColumnNameAndTypesProcAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            const string sqlCommand = "EXEC [dbo].[ColumnNameAndTypesProc]";
+            var procResultData = await Set<ColumnNameAndTypesProcReturnModel>()
+                .FromSqlRaw(sqlCommand)
+                .ToListAsync(cancellationToken);
+
+            return procResultData;
         }
 
         public int ConvertToString(int? someValue, ref string someString)
@@ -1416,6 +1442,7 @@ namespace V8_Efrpg_Test
 
         // MinTripSequenceStartNullAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
+        // Unable to determine return model for 'MultipleReturnColumnsFromTempTable'. Error: Invalid object name '#temp'.
         public int MultipleReturnColumnsFromTempTable()
         {
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
@@ -1582,25 +1609,41 @@ namespace V8_Efrpg_Test
             return procResultData;
         }
 
-        public int SpatialTypesNoParams()
+        public List<SpatialTypesNoParamsReturnModel> SpatialTypesNoParams()
         {
-            var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
-
-            Database.ExecuteSqlRaw("EXEC @procResult = [dbo].[SpatialTypesNoParams] ", procResultParam);
-
-            return (int)procResultParam.Value;
+            int procResult;
+            return SpatialTypesNoParams(out procResult);
         }
 
-        public async Task<int> SpatialTypesNoParamsAsync(CancellationToken cancellationToken = default(CancellationToken))
+        public List<SpatialTypesNoParamsReturnModel> SpatialTypesNoParams(out int procResult)
         {
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            const string sqlCommand = "EXEC @procResult = [dbo].[SpatialTypesNoParams]";
+            var procResultData = Set<SpatialTypesNoParamsReturnModel>()
+                .FromSqlRaw(sqlCommand, procResultParam)
+                .ToList();
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[SpatialTypesNoParams]",  new[] {procResultParam}, cancellationToken);
-
-            return (int)procResultParam.Value;
+            procResult = (int) procResultParam.Value;
+            return procResultData;
         }
 
-        public int SpatialTypesWithParams(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography)
+        public async Task<List<SpatialTypesNoParamsReturnModel>> SpatialTypesNoParamsAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            const string sqlCommand = "EXEC [dbo].[SpatialTypesNoParams]";
+            var procResultData = await Set<SpatialTypesNoParamsReturnModel>()
+                .FromSqlRaw(sqlCommand)
+                .ToListAsync(cancellationToken);
+
+            return procResultData;
+        }
+
+        public List<SpatialTypesWithParamsReturnModel> SpatialTypesWithParams(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography)
+        {
+            int procResult;
+            return SpatialTypesWithParams(geometry, geography, out procResult);
+        }
+
+        public List<SpatialTypesWithParamsReturnModel> SpatialTypesWithParams(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography, out int procResult)
         {
             var geometryParam = new SqlParameter { ParameterName = "@geometry", SqlDbType = SqlDbType.VarChar, Direction = ParameterDirection.Input, Value = geometry, Size = -1 };
             if (geometryParam.Value == null)
@@ -1611,13 +1654,16 @@ namespace V8_Efrpg_Test
                 geographyParam.Value = DBNull.Value;
 
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            const string sqlCommand = "EXEC @procResult = [dbo].[SpatialTypesWithParams] @geometry, @geography";
+            var procResultData = Set<SpatialTypesWithParamsReturnModel>()
+                .FromSqlRaw(sqlCommand, geometryParam, geographyParam, procResultParam)
+                .ToList();
 
-            Database.ExecuteSqlRaw("EXEC @procResult = [dbo].[SpatialTypesWithParams] @geometry, @geography", geometryParam, geographyParam, procResultParam);
-
-            return (int)procResultParam.Value;
+            procResult = (int) procResultParam.Value;
+            return procResultData;
         }
 
-        public async Task<int> SpatialTypesWithParamsAsync(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<List<SpatialTypesWithParamsReturnModel>> SpatialTypesWithParamsAsync(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography, CancellationToken cancellationToken = default(CancellationToken))
         {
             var geometryParam = new SqlParameter { ParameterName = "@geometry", SqlDbType = SqlDbType.VarChar, Direction = ParameterDirection.Input, Value = geometry, Size = -1 };
             if (geometryParam.Value == null)
@@ -1627,11 +1673,12 @@ namespace V8_Efrpg_Test
             if (geographyParam.Value == null)
                 geographyParam.Value = DBNull.Value;
 
-            var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+            const string sqlCommand = "EXEC [dbo].[SpatialTypesWithParams] @geometry, @geography";
+            var procResultData = await Set<SpatialTypesWithParamsReturnModel>()
+                .FromSqlRaw(sqlCommand, geometryParam, geographyParam)
+                .ToListAsync(cancellationToken);
 
-            await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[SpatialTypesWithParams] @geometry, @geography",  new[] {geometryParam, geographyParam, procResultParam}, cancellationToken);
-
-            return (int)procResultParam.Value;
+            return procResultData;
         }
 
         public List<StoredProcWithDefaultsReturnModel> StoredProcWithDefaults(int? userId = 12, int? userIdNull = null, string clientName = "Hello", string clientNameNull = null, string clientNameMaxNull = null, string clientDesc = "World", string clientDescNull = null, decimal? decimalValue = 1.234m, decimal? decimalValueNull = null, decimal? money = 4.56m, decimal? moneyNull = null, decimal? smallMoney = 7.89m, decimal? smallMoneyNull = null, float? realValue = 9.876f, float? realValueNull = null, double? floatValue = 6.54, double? floatValueNull = null)
@@ -2336,6 +2383,7 @@ namespace V8_Efrpg_Test
             return procResultData;
         }
 
+        // Unable to determine return model for 'XmlDataV2'. Error: Mutator 'modify()' on '@someXml' cannot be called on a null value.
         public int XmlDataV2()
         {
             var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
@@ -6290,6 +6338,30 @@ namespace V8_Efrpg_Test
         public int? Red { get; set; }
     }
 
+    public class ColumnNameAndTypesProcReturnModel
+    {
+        public DateTime someDate { get; set; }
+        public string Obs { get; set; }
+        public int? @static { get; set; }
+        public int? @readonly { get; set; }
+        public Single? areal { get; set; }
+        public double? afloat { get; set; }
+        public Single? afloat8 { get; set; }
+        public Single? afloat20 { get; set; }
+        public Single? afloat24 { get; set; }
+        public double? afloat53 { get; set; }
+        public decimal? adecimal { get; set; }
+        public decimal? adecimal_19_4 { get; set; }
+        public decimal? adecimal_10_3 { get; set; }
+        public decimal? anumeric { get; set; }
+        public decimal? anumeric_5_2 { get; set; }
+        public decimal? anumeric_11_3 { get; set; }
+        public decimal? amoney { get; set; }
+        public decimal? asmallmoney { get; set; }
+        public NetTopologySuite.Geometries.Point GeographyType { get; set; }
+        public NetTopologySuite.Geometries.Geometry GeometryType { get; set; }
+    }
+
     public class CsvToIntReturnModel
     {
         public int? IntValue { get; set; }
@@ -6377,6 +6449,21 @@ namespace V8_Efrpg_Test
         public int? Id { get; set; }
         public string MyColumn { get; set; }
         public bool? IsActive { get; set; }
+    }
+
+    public class SpatialTypesNoParamsReturnModel
+    {
+        public int Dollar { get; set; }
+        public DateTime someDate { get; set; }
+        public NetTopologySuite.Geometries.Point GeographyType { get; set; }
+        public NetTopologySuite.Geometries.Geometry GeometryType { get; set; }
+    }
+
+    public class SpatialTypesWithParamsReturnModel
+    {
+        public int Dollar { get; set; }
+        public NetTopologySuite.Geometries.Point GeographyType { get; set; }
+        public NetTopologySuite.Geometries.Geometry GeometryType { get; set; }
     }
 
     public class StoredProcWithDefaultsReturnModel
