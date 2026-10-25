@@ -230,6 +230,30 @@ namespace Generator.Tests.Unit
             Assert.That(column.Default, Is.EqualTo(expectedDefault));
         }
 
+        // A fixed date or time is a quoted C# literal by the time it is validated, and TryParse rejects the quotes, so
+        // the default was always dropped and EF Core inserted DateTime.MinValue instead (#204).
+
+        [TestCase("DateTime",       "('1900-01-01 00:00:00.000')",    "DateTime.Parse(\"1900-01-01 00:00:00.000\")")]
+        [TestCase("DateTime",       "('2017-01-30')",                 "DateTime.Parse(\"2017-01-30\")")]
+        [TestCase("DateTimeOffset", "('2017-01-30 12:00:00 +01:00')", "DateTimeOffset.Parse(\"2017-01-30 12:00:00 +01:00\")")]
+        [TestCase("TimeSpan",       "('12:30:00')",                   "TimeSpan.Parse(\"12:30:00\")")]
+        public void CleanUpDefault_SqlServerFixedDateOrTime_BecomesAParseOfTheLiteral(string propertyType, string reported, string expectedDefault)
+        {
+            var column = CleanUp(DatabaseType.SqlServer, propertyType, reported);
+
+            Assert.That(column.Default, Is.EqualTo(expectedDefault));
+        }
+
+        [TestCase("DateTime")]
+        [TestCase("DateTimeOffset")]
+        [TestCase("TimeSpan")]
+        public void CleanUpDefault_SqlServerDateOrTimeThatDoesNotParse_HasNoCSharpDefault(string propertyType)
+        {
+            var column = CleanUp(DatabaseType.SqlServer, propertyType, "('not a date')");
+
+            Assert.That(column.Default, Is.Empty);
+        }
+
         // EF Core will not save a null into a NOT NULL array even with HasDefaultValueSql, so an array literal the
         // generator can read is written out in C#. Only the forms it cannot read safely are left to the database.
 

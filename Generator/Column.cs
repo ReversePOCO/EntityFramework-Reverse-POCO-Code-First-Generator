@@ -286,7 +286,8 @@ namespace Efrpg
                 return;
             }
 
-            // Validate default
+            // Validate default. A date or time is a C# string literal by now, which TryParse rejects for its quotes (#204)
+            var literalValue = Default.TrimStart('@').Trim('"');
             switch (lowerPropertyType)
             {
                 case "long":
@@ -311,7 +312,7 @@ namespace Efrpg
                 case "datetime2":
                 case "system.datetime":
                     DateTime dt;
-                    if (!DateTime.TryParse(Default, out dt))
+                    if (!DateTime.TryParse(literalValue, out dt))
                         Default = (lower.Contains("getdate()") || lower.Contains("sysdatetime"))
                             ? "DateTime.Now"
                             : (lower.Contains("getutcdate()") || lower.Contains("sysutcdatetime"))
@@ -324,7 +325,7 @@ namespace Efrpg
                 case "datetimeoffset":
                 case "system.datetimeoffset":
                     DateTimeOffset dto;
-                    if (!DateTimeOffset.TryParse(Default, out dto))
+                    if (!DateTimeOffset.TryParse(literalValue, out dto))
                         Default = (lower.Contains("getdate()") || lower.Contains("sysdatetimeoffset"))
                             ? "DateTimeOffset.Now"
                             : (lower.Contains("getutcdate()") || lower.Contains("sysutcdatetime"))
@@ -337,7 +338,7 @@ namespace Efrpg
                 case "timespan":
                 case "system.timespan":
                     TimeSpan ts;
-                    Default = TimeSpan.TryParse(Default, out ts)
+                    Default = TimeSpan.TryParse(literalValue, out ts)
                         ? string.Format("TimeSpan.Parse({0})", Default)
                         : string.Empty;
                     break;
