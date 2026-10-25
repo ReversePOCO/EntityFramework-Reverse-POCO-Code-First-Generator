@@ -54,6 +54,15 @@ namespace Generator.Tests.Unit.DocSamples
         }
 
         /// <summary>
+        ///     Generates with <paramref name="enums"/> in place of the enums a database would supply. See
+        ///     <see cref="Enums"/>.
+        /// </summary>
+        public static string Generate(Action configure, List<Enumeration> enums)
+        {
+            return GenerateFromPayload(File.ReadAllText(SchemaPath(Schema.Core)), configure, enums);
+        }
+
+        /// <summary>
         ///     Generates against a named fixture schema.
         /// </summary>
         public static string Generate(Schema schema, Action configure)
@@ -66,6 +75,11 @@ namespace Generator.Tests.Unit.DocSamples
         ///     has. Same shipped defaults, same single file, no database.
         /// </summary>
         public static string GenerateFromPayload(string payloadXml, Action configure)
+        {
+            return GenerateFromPayload(payloadXml, configure, null);
+        }
+
+        private static string GenerateFromPayload(string payloadXml, Action configure, List<Enumeration> enums)
         {
             ApplyDatabaseTtDefaults();
             configure?.Invoke();
@@ -81,6 +95,7 @@ namespace Generator.Tests.Unit.DocSamples
             EnableEverythingOnTheFilters(generator);
 
             generator.ReadDatabase();
+            AddEnums(generator, enums);
             generator.GenerateCode();
 
             // Deliberately no fileManagement.Process(true): that writes an audit file and the generated .cs to
@@ -98,6 +113,75 @@ namespace Generator.Tests.Unit.DocSamples
         ///     rather than code.
         /// </remarks>
         public static string GenerateFileListing(Action configure)
+        {
+            return GenerateFileListing(configure, null);
+        }
+
+        /// <summary>
+        ///     The file listing, with <paramref name="enums"/> in place of the enums a database would supply.
+        /// </summary>
+        public static string GenerateFileListing(Action configure, List<Enumeration> enums)
+        {
+            var root = GenerateSeparateFiles(configure, enums);
+
+            var files = Directory
+                .GetFiles(root, "*", SearchOption.AllDirectories)
+                .Select(f => f.Substring(root.Length).TrimStart(Path.DirectorySeparatorChar, '/').Replace(Path.DirectorySeparatorChar, '/'))
+                .Where(f => !f.EndsWith("Audit.txt", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => f, StringComparer.Ordinal)
+                .ToList();
+
+            return files.Count == 0 ? "// No files generated." : string.Join(LineFeed, files);
+        }
+
+        /// <summary>
+        ///     Generates with <c>GenerateSeparateFiles</c> on and returns one of the files, for a setting that changes
+        ///     what goes into a file rather than which files there are.
+        /// </summary>
+        /// <param name="relativePath">
+        ///     As <see cref="GenerateFileListing(Action)"/> lists it, e.g. <c>Entities/Enums.cs</c>.
+        /// </param>
+        public static string GenerateSeparateFile(Action configure, List<Enumeration> enums, string relativePath)
+        {
+            var root = GenerateSeparateFiles(configure, enums);
+
+            var path = Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(path))
+                throw new FileNotFoundException("The generator did not write " + relativePath + ".", path);
+
+            return Normalise(File.ReadAllText(path));
+        }
+
+        /// <summary>
+        ///     Two enums for the core schema, standing in for the rows a database would supply.
+        /// </summary>
+        /// <remarks>
+        ///     Real enums come from <c>Settings.Enumerations</c>, which re-invokes the efrpg tool to read the rows and
+        ///     so needs a database - which is why <c>ApplyDatabaseTtDefaults</c> keeps it null. These go straight into
+        ///     the filters after the schema is read, which is where the tool's enums would have landed.
+        /// </remarks>
+        public static List<Enumeration> Enums()
+        {
+            return new List<Enumeration>
+            {
+                new Enumeration("OrderStatus", new List<EnumerationMember>
+                {
+                    new EnumerationMember("Pending", "1", new Dictionary<string, object>()),
+                    new EnumerationMember("Shipped", "2", new Dictionary<string, object>()),
+                    new EnumerationMember("Delivered", "3", new Dictionary<string, object>())
+                }),
+                new Enumeration("ShippingMethod", new List<EnumerationMember>
+                {
+                    new EnumerationMember("Standard", "1", new Dictionary<string, object>()),
+                    new EnumerationMember("Express", "2", new Dictionary<string, object>())
+                })
+            };
+        }
+
+        /// <summary>
+        ///     Runs the generator with separate files on, into an emptied temporary folder, and returns that folder.
+        /// </summary>
+        private static string GenerateSeparateFiles(Action configure, List<Enumeration> enums)
         {
             ApplyDatabaseTtDefaults();
             Settings.GenerateSeparateFiles = true;
@@ -119,17 +203,20 @@ namespace Generator.Tests.Unit.DocSamples
 
             EnableEverythingOnTheFilters(generator);
             generator.ReadDatabase();
+            AddEnums(generator, enums);
             generator.GenerateCode();
             fileManagement.Process(true);
 
-            var files = Directory
-                .GetFiles(root, "*", SearchOption.AllDirectories)
-                .Select(f => f.Substring(root.Length).TrimStart(Path.DirectorySeparatorChar, '/').Replace(Path.DirectorySeparatorChar, '/'))
-                .Where(f => !f.EndsWith("Audit.txt", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(f => f, StringComparer.Ordinal)
-                .ToList();
+            return root;
+        }
 
-            return files.Count == 0 ? "// No files generated." : string.Join(LineFeed, files);
+        private static void AddEnums(Efrpg.Generators.Generator generator, List<Enumeration> enums)
+        {
+            if (enums == null)
+                return;
+
+            foreach (var filter in generator.FilterList.GetFilters())
+                filter.Value.Enums.AddRange(enums);
         }
 
         /// <summary>
@@ -220,6 +307,7 @@ namespace Generator.Tests.Unit.DocSamples
             Settings.PocoConfigurationFolder   = "";
             Settings.OwnedEntityFolder         = "";
             Settings.UseFolderNameInNamespace  = false;
+            Settings.EnumsFileName             = "";
 
             Settings.CommandTimeout                         = 600;
             Settings.DbContextInterfaceBaseClasses          = "IDisposable";

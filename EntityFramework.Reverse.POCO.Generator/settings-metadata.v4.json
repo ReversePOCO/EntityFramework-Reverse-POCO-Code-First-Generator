@@ -308,6 +308,19 @@
       "runtimeOnly": false
     },
     {
+      "name": "EnumsFileName",
+      "wikiPage": "Settings.EnumsFileName",
+      "type": "string",
+      "kind": "string",
+      "section": "Generate files in sub-folders",
+      "help": "GenerateSeparateFiles only. If set, every enum is written to this one file instead of one file per enum, e.g. \"Enums\"",
+      "defaultValue": "\"\"",
+      "inDatabaseTt": true,
+      "commentedOut": false,
+      "multiLine": false,
+      "runtimeOnly": false
+    },
+    {
       "name": "CommandTimeout",
       "wikiPage": "Settings.CommandTimeout",
       "type": "int",

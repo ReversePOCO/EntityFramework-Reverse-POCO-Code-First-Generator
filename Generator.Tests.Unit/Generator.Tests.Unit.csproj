@@ -107,6 +107,7 @@
     <Compile Include="DocSamples\StaticStateSnapshot.cs" />
     <Compile Include="DocSamples\SettingsPageCoverageTests.cs" />
     <Compile Include="DocSamples\WikiSnippetDriftTests.cs" />
+    <Compile Include="EnumsFileNameTests.cs" />
     <Compile Include="MakeUniqueTests.cs" />
     <Compile Include="TablesGetTableTests.cs" />
     <Compile Include="WireContractTests.cs" />

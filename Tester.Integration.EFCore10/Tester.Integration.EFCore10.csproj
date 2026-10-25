@@ -10,6 +10,7 @@
     <ItemGroup>
       <None Remove="Azure.tt" />
       <None Remove="EfrpgTest.tt" />
+      <None Remove="EnumsFile\EnumsFile.tt" />
       <None Remove="Northwind.tt" />
       <None Remove="TestSynonymsDatabase.tt" />
     </ItemGroup>
@@ -22,6 +23,10 @@
       <Content Include="EfrpgTest.tt">
         <Generator>TextTemplatingFileGenerator</Generator>
         <LastGenOutput>EfrpgTest.cs</LastGenOutput>
+      </Content>
+      <Content Include="EnumsFile\EnumsFile.tt">
+        <Generator>TextTemplatingFileGenerator</Generator>
+        <LastGenOutput>EnumsFile.cs</LastGenOutput>
       </Content>
       <Content Include="Northwind.tt">
         <Generator>TextTemplatingFileGenerator</Generator>
@@ -69,6 +74,11 @@
         <DesignTime>True</DesignTime>
         <AutoGen>True</AutoGen>
         <DependentUpon>EfrpgTestDataAnnotations.tt</DependentUpon>
+      </Compile>
+      <Compile Update="EnumsFile\EnumsFile.cs">
+        <DesignTime>True</DesignTime>
+        <AutoGen>True</AutoGen>
+        <DependentUpon>EnumsFile.tt</DependentUpon>
       </Compile>
       <Compile Update="Northwind.cs">
         <DesignTime>True</DesignTime>

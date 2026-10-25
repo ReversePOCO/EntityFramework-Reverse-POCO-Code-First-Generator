@@ -210,6 +210,11 @@ namespace Generator.Tests.Unit.DocSamples
                         Settings.PocoConfigurationFolder = "Data/Configuration";
                     }) },
 
+                { "EnumsFileName/empty", () => DocSampleRunner.GenerateFileListing(() => { }, DocSampleRunner.Enums()) },
+                { "EnumsFileName/Enums", () => DocSampleRunner.GenerateFileListing(() => Settings.EnumsFileName = "Enums", DocSampleRunner.Enums()) },
+                { "EnumsFileName/file",  () =>
+                    DocSampleRunner.GenerateSeparateFile(() => Settings.EnumsFileName = "Enums", DocSampleRunner.Enums(), "Enums.cs") },
+
                 // ---- Callbacks ---------------------------------------------------------------------------
                 { "TableRename/before", () => Outline(Default()) },
                 { "TableRename/after",  () => Outline(DocSampleRunner.Generate(() =>

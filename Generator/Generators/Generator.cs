@@ -1817,12 +1817,16 @@ namespace Efrpg.Generators
                     .Select(x => x.Value)
                     .ToList());
 
-            WriteCodeOutputForGroup(codeGenerator, "Enumerations", true,
-                codeOutputList.Files
-                    .Where(x => x.Key.StartsWith(enumType))
-                    .OrderBy(x => x.Key)
-                    .Select(x => x.Value)
-                    .ToList());
+            var enums = codeOutputList.Files
+                .Where(x => x.Key.StartsWith(enumType))
+                .OrderBy(x => x.Key)
+                .Select(x => x.Value)
+                .ToList();
+
+            if (Settings.GenerateSeparateFiles && !string.IsNullOrWhiteSpace(Settings.EnumsFileName))
+                WriteCodeOutputToOneFile(codeGenerator, codeGenerator.EnumsFile(enums), enums);
+            else
+                WriteCodeOutputForGroup(codeGenerator, "Enumerations", true, enums);
 
             WriteCodeOutputForGroup(codeGenerator, "Owned entity classes", true,
                 codeOutputList.Files
@@ -1856,48 +1860,7 @@ namespace Efrpg.Generators
         private void WriteCodeOutput(CodeGenerator codeGenerator, CodeOutput code, bool writePreHeaderInfo, string regionNameForGroup = null, bool firstInGroup = false, bool lastInGroup = false)
         {
             if (Settings.GenerateSeparateFiles)
-            {
-                _fileManagementService.EndBlock();
-                _fileManagementService.StartNewFile(code.Filename);
-
-                // If generating separate files, check if the db context is the same name as the tt filename.
-                // If it is the same, force writing to outer.
-                if (Path.GetFileNameWithoutExtension(code.Filename).Equals(Settings.TemplateFile, StringComparison.CurrentCultureIgnoreCase))
-                    _fileManagementService.ForceWriteToOuter = true;
-
-                if (writePreHeaderInfo)
-                {
-                    var preHeader = _preHeaderInfo.ToString();
-                    if (!string.IsNullOrWhiteSpace(preHeader))
-                        _fileManagementService.WriteLine(preHeader.Trim());
-                }
-
-                var header = _fileHeaderFooter.Header;
-                if (!string.IsNullOrWhiteSpace(header))
-                    _fileManagementService.WriteLine(header.Trim());
-
-                var fileUsings = code.GetUsings();
-                if (Settings.UseFolderNameInNamespace)
-                {
-                    var ownNs = _fileHeaderFooter.GetNamespaceName(code.SubFolder);
-                    fileUsings = fileUsings.Where(u => u != ownNs).ToList();
-                }
-                var usings = codeGenerator.GenerateUsings(fileUsings);
-                if (!string.IsNullOrWhiteSpace(usings))
-                {
-                    _fileManagementService.WriteLine("");
-                    _fileManagementService.WriteLine(usings.Trim());
-                }
-
-                var ns = Settings.UseFolderNameInNamespace
-                    ? _fileHeaderFooter.GetNamespaceBlock(code.SubFolder)
-                    : _fileHeaderFooter.Namespace;
-                if (!string.IsNullOrWhiteSpace(ns))
-                {
-                    _fileManagementService.WriteLine("");
-                    _fileManagementService.WriteLine(ns.Trim());
-                }
-            }
+                StartFile(codeGenerator, code, writePreHeaderInfo);
 
             WriteLines(IndentCode(code, regionNameForGroup, firstInGroup, lastInGroup));
 
@@ -1905,6 +1868,68 @@ namespace Efrpg.Generators
                 _fileManagementService.WriteLine(_fileHeaderFooter.Footer);
 
             _fileManagementService.ForceWriteToOuter = false;
+        }
+
+        /// <summary>
+        ///     Writes a whole group to one file instead of one file per item: the header once, then every item, then
+        ///     the footer once. Separate files only.
+        /// </summary>
+        private void WriteCodeOutputToOneFile(CodeGenerator codeGenerator, CodeOutput file, List<CodeOutput> list)
+        {
+            if (list.Count == 0)
+                return;
+
+            StartFile(codeGenerator, file, true);
+
+            for (var i = 0; i < list.Count; i++)
+                WriteLines(IndentCode(list[i], null, i == 0, i == list.Count - 1));
+
+            _fileManagementService.WriteLine(_fileHeaderFooter.Footer);
+            _fileManagementService.ForceWriteToOuter = false;
+        }
+
+        private void StartFile(CodeGenerator codeGenerator, CodeOutput file, bool writePreHeaderInfo)
+        {
+            _fileManagementService.EndBlock();
+            _fileManagementService.StartNewFile(file.Filename);
+
+            // If generating separate files, check if the db context is the same name as the tt filename.
+            // If it is the same, force writing to outer.
+            if (Path.GetFileNameWithoutExtension(file.Filename).Equals(Settings.TemplateFile, StringComparison.CurrentCultureIgnoreCase))
+                _fileManagementService.ForceWriteToOuter = true;
+
+            if (writePreHeaderInfo)
+            {
+                var preHeader = _preHeaderInfo.ToString();
+                if (!string.IsNullOrWhiteSpace(preHeader))
+                    _fileManagementService.WriteLine(preHeader.Trim());
+            }
+
+            var header = _fileHeaderFooter.Header;
+            if (!string.IsNullOrWhiteSpace(header))
+                _fileManagementService.WriteLine(header.Trim());
+
+            var fileUsings = file.GetUsings();
+            if (Settings.UseFolderNameInNamespace)
+            {
+                var ownNs = _fileHeaderFooter.GetNamespaceName(file.SubFolder);
+                fileUsings = fileUsings.Where(u => u != ownNs).ToList();
+            }
+            var usings = codeGenerator.GenerateUsings(fileUsings);
+            if (!string.IsNullOrWhiteSpace(usings))
+            {
+                _fileManagementService.WriteLine("");
+                _fileManagementService.WriteLine(usings.Trim());
+            }
+
+            var ns = Settings.UseFolderNameInNamespace
+                ? _fileHeaderFooter.GetNamespaceBlock(file.SubFolder)
+                : _fileHeaderFooter.Namespace;
+            if (!string.IsNullOrWhiteSpace(ns))
+            {
+                _fileManagementService.WriteLine("");
+                _fileManagementService.WriteLine(ns.Trim());
+            }
         }
 
         /// <summary>

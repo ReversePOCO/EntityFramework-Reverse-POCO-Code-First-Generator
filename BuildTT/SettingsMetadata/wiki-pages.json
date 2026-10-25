@@ -38,6 +38,7 @@
   "ElementsToGenerate": "Settings.ElementsToGenerate",
   "EntityClassesModifiers": "Settings.EntityClassesModifiers",
   "Enumerations": "Settings.Enumerations",
+  "EnumsFileName": "Settings.EnumsFileName",
   "FakeDbContextInDebugOnlyMode": "Settings.AddUnitTestingDbContext",
   "ForeignKeyAnnotationsProcessing": "Settings.ForeignKeyAnnotationsProcessing",
   "ForeignKeyFilterFunc": "Settings.ForeignKeyFilterFunc",

@@ -911,6 +911,22 @@ namespace Efrpg.Generators
             return co;
         }
 
+        /// <summary>
+        ///     The one file every enum is written to when <see cref="Settings.EnumsFileName" /> is set. It goes in the
+        ///     folder the per-enum files would have used and carries every using any of them needs; the enums themselves
+        ///     are written into it one by one, so each keeps its own attributes.
+        /// </summary>
+        public CodeOutput EnumsFile(List<CodeOutput> enums)
+        {
+            // Tolerate "Enums.cs" as well as "Enums" rather than writing Enums.cs.cs.
+            var name = Settings.EnumsFileName.Trim();
+            if (name.EndsWith(FileManagementService.Extension, StringComparison.OrdinalIgnoreCase))
+                name = name.Substring(0, name.Length - FileManagementService.Extension.Length);
+
+            var usings = enums.SelectMany(x => x.GetUsings()).ToList();
+            return new CodeOutput(name, name + FileManagementService.Extension, null, Settings.PocoFolder, usings);
+        }
+
         public CodeOutput GenerateOwnedEntityClass(string typeName, IList<OwnedEntity> instances)
         {
             var filename = typeName + FileManagementService.Extension;

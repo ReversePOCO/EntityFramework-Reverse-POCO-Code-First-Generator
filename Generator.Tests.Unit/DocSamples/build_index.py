@@ -38,6 +38,7 @@ M = {
  "PocoFolder":("Settings.PocoFolder","Sub-folder for the entity classes"),
  "PocoConfigurationFolder":("Settings.PocoFolder","Sub-folder for the configuration classes"),
  "OwnedEntityFolder":("Settings.PocoFolder","Sub-folder for owned entity classes"),
+ "EnumsFileName":("Settings.EnumsFileName","One file for every enum instead of one file per enum"),
  "ElementsToGenerate":("Settings.ElementsToGenerate","Which kinds of class to generate at all"),
 
  # DbContext

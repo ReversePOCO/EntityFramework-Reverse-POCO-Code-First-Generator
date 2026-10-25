@@ -39,6 +39,7 @@ namespace Efrpg
         public static string PocoConfigurationFolder = ""; // Sub-folder you would like your Configuration mappings to be added to. e.g. @"Data\Configuration"
         public static string OwnedEntityFolder = ""; // Sub-folder for auto-generated owned entity classes; defaults to PocoFolder if empty.   e.g. @"Data\Entities"
         public static bool UseFolderNameInNamespace = false; // If true, appends the sub-folder name to the namespace of each generated file. e.g. PocoFolder = "Entities" => namespace MyProject.Entities
+        public static string EnumsFileName = ""; // GenerateSeparateFiles only. If set, every enum is written to this one file instead of one file per enum, e.g. "Enums"
 
 
         public static int CommandTimeout = 600; // SQL Command timeout in seconds. 600 is 10 minutes, 0 will wait indefinitely. Some databases can be slow retrieving schema information.

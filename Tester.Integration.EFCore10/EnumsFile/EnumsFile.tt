@@ -1,0 +1,84 @@
+<#@ include file ="..\..\EntityFramework.Reverse.POCO.Generator\EF.Reverse.POCO.v4.ttinclude" #>
+<#
+    // Separate files, with every enum written to the one file Settings.EnumsFileName names (#770)
+    Settings.DatabaseType             = DatabaseType.SqlServer; // SqlServer, SQLite, PostgreSQL, MySql, Oracle
+    Settings.TemplateType             = TemplateType.EfCore10;
+    Settings.ConnectionString         = "Data Source=(local);Initial Catalog=EfrpgTest;Integrated Security=True;Encrypt=false;TrustServerCertificate=true";
+    Settings.ConnectionStringName     = "EfCoreDatabase"; // ConnectionString key as specified in your app.config/web.config/appsettings.json
+    Settings.DbContextName            = "EnumsFileDbContext"; // Class name for the DbContext to be generated.
+    Settings.OnConfiguration          = OnConfiguration.Configuration; // EFCore only. Determines the code generated within DbContext.OnConfiguration().
+    Settings.GenerateSeparateFiles    = true;
+    Settings.Namespace                = "Tester.Integration.EFCore10.EnumsFile"; // Fixed, so a command-line transform agrees with Visual Studio
+    Settings.UseFileScopedNamespaces  = true;
+
+    // Only the EnumTest tables, to keep this golden small. The enums are read whatever the filters say.
+    FilterSettings.Reset();
+    FilterSettings.AddDefaults();
+    FilterSettings.IncludeStoredProcedures = false;
+    FilterSettings.SchemaFilters.Add(new RegexIncludeFilter("^EnumTest$"));
+    FilterSettings.CheckSettings();
+
+    // Generate files in sub-folders ******************************************************************************************************
+    // Only activated if Settings.GenerateSeparateFiles = true
+    Settings.ContextFolder            = @"Contexts";      // Sub-folder you would like your DbContext to be added to.              e.g. @"Data"
+    Settings.InterfaceFolder          = @"Interfaces";    // Sub-folder you would like your Interface to be added to.              e.g. @"Data\Interface"
+    Settings.PocoFolder               = @"Entities";      // Sub-folder you would like your Poco's to be added to.                 e.g. @"Data\Entities"
+    Settings.PocoConfigurationFolder  = @"Configuration"; // Sub-folder you would like your Configuration mappings to be added to. e.g. @"Data\Configuration"
+    Settings.UseFolderNameInNamespace = true;             // If true, appends the sub-folder name to the namespace. e.g. PocoFolder = "Entities" => namespace MyProject.Entities
+    Settings.EnumsFileName            = "Enums";          // GenerateSeparateFiles only. If set, every enum is written to this one file instead of one file per enum, e.g. "Enums"
+
+    Settings.Enumerations = new List<EnumerationSettings>
+    {
+        new EnumerationSettings
+        {
+            Name       = "DaysOfWeek",
+            Table      = "EnumTest.DaysOfWeek",
+            NameField  = "TypeName",
+            ValueField = "TypeId",
+            GroupField = string.Empty
+        },
+        new EnumerationSettings
+        {
+            Name       = "CarOptions",
+            Table      = "EnumsWithStringAsValue",
+            NameField  = "enum_name",
+            ValueField = "value"
+        }
+    };
+
+    Inflector.PluralisationService = new EnglishPluralizationService();
+    var outer = (GeneratedTextTransformation) this;
+    var fileManagement = new FileManagementService(outer);
+
+    EfrpgResult toolResult = null;
+    var efrpgToolOk = true;
+    try
+    {
+        // Connection strings are passed to the tool over stdin, never on the command line, so they stay out of
+        // process listings and command-line audit logs. See SecretsXml and EfrpgToolRunner.
+        toolResult = EfrpgToolRunner.ReadDatabase(
+            FilterSettings.IncludeStoredProcedures || FilterSettings.IncludeTableValuedFunctions || FilterSettings.IncludeScalarValuedFunctions,
+            FilterSettings.IncludeSynonyms);
+    }
+    catch (Exception efrpgEx)
+    {
+        fileManagement.Error("// -----------------------------------------------------------------------------------------");
+        if (efrpgEx is System.ComponentModel.Win32Exception)
+            fileManagement.Error("// efrpg tool not found. Install it with: dotnet tool install -g Efrpg");
+        else
+            fileManagement.Error("// efrpg tool reported an error:");
+        fileManagement.Error("// " + efrpgEx.Message.Replace("\r\n", " ").Replace("\n", " "));
+        fileManagement.Error("// -----------------------------------------------------------------------------------------");
+        efrpgToolOk = false;
+    }
+
+    if (efrpgToolOk)
+    {
+        var generator = GeneratorFactory.Create(toolResult, fileManagement);
+        if (generator != null && generator.InitialisationOk)
+        {
+            generator.ReadDatabase();
+            generator.GenerateCode();
+        }
+        fileManagement.Process(true);
+    }#>

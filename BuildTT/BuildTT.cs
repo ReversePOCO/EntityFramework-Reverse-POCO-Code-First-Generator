@@ -88,6 +88,7 @@ namespace BuildTT
         Settings.PocoFolder                 = @""Entities"";      // Sub-folder you would like your Poco's to be added to.                 e.g. @""Data\Entities""
         Settings.PocoConfigurationFolder    = @""Configuration""; // Sub-folder you would like your Configuration mappings to be added to. e.g. @""Data\Configuration""
         Settings.UseFolderNameInNamespace   = false;              // If true, appends the sub-folder name to the namespace. e.g. PocoFolder = ""Entities"" => namespace MyProject.Entities
+        Settings.EnumsFileName              = """";               // GenerateSeparateFiles only. If set, every enum is written to this one file instead of one file per enum, e.g. ""Enums""
     }
 
     // Other settings *********************************************************************************************************************
