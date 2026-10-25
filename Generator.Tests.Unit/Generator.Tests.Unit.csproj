@@ -151,6 +151,7 @@
     <Compile Include="SchemaReaderTests.cs" />
     <Compile Include="ToolGateSchemaFloorTests.cs" />
     <Compile Include="SettingsMetadataTests.cs" />
+    <Compile Include="SettingsResetTests.cs" />
     <Compile Include="PluralisationTests.cs" />
     <Compile Include="ProjectNamespaceTests.cs" />
     <Compile Include="DecimalPrecisionTests.cs" />

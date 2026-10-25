@@ -2,8 +2,10 @@
 using Efrpg.Generators;
 using Efrpg.Templates;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace Efrpg
@@ -1083,6 +1085,41 @@ namespace Efrpg
         public static string TemplateFile;
 
         public static bool NeedsNullForgiving() => AllowNullStrings || NullableReverseNavigationProperties;
+
+        private static readonly Dictionary<FieldInfo, object> Defaults;
+
+        static Settings()
+        {
+            // A static constructor runs after every field initialiser, wherever it sits in the file, so this sees all
+            // of the defaults however the fields above are reordered.
+            Defaults = typeof(Settings)
+                .GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .Where(x => !x.IsLiteral && !x.IsInitOnly)
+                .ToDictionary(x => x, x => CopyDefault(x.GetValue(null)));
+        }
+
+        /// <summary>
+        ///     Puts every setting back to the default declared above. The include calls this before the template body
+        ///     runs, because Visual Studio can run an unchanged template again without reloading it, and these statics
+        ///     would otherwise still hold the previous run's values. A template that appends to a collection, such as
+        ///     StoredProcedureReturnTypes.Add, then threw on every run after the first (#902).
+        /// </summary>
+        public static void Reset()
+        {
+            foreach (var setting in Defaults)
+                setting.Key.SetValue(null, CopyDefault(setting.Value));
+        }
+
+        private static object CopyDefault(object value)
+        {
+            // A template changes a collection by adding to it rather than assigning the field, so each run needs its
+            // own instance instead of the one the previous run added to.
+            var array = value as Array;
+            if (array != null)
+                return array.Clone();
+
+            return value is ICollection ? Activator.CreateInstance(value.GetType(), value) : value;
+        }
 
         public static void CheckSettings()
         {

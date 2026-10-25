@@ -837,6 +837,7 @@ namespace BuildTT
             const string header2 = @"<#@ output extension="".cs"" encoding=""utf-8"" #>
 <#
         // WriteLine(""// T4 framework version = "" + AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName);
+        Settings.Reset(); // Visual Studio can rerun an unchanged template without reloading it, so drop the last run's settings first.
         // Visual Studio supplies the project's namespace here; other hosts supply nothing, so derive it from the .csproj instead.
         var namespaceHint = this.Host.ResolveParameterValue(""directiveId"", ""namespaceDirectiveProcessor"", ""namespaceHint"");
         Settings.TemplateFile = System.IO.Path.GetFileNameWithoutExtension(this.Host.TemplateFile);
