@@ -1352,7 +1352,7 @@ namespace Efrpg.Generators
                     childName,
                     isUnique
                 )
-                { IncludeReverseNavigation = true };
+                { IncludeReverseNavigation = true, IsDeclaredUnique = isUnique };
 
                 fkList.Add(fk);
                 fkTable.HasForeignKey = true;
@@ -1435,8 +1435,11 @@ namespace Efrpg.Generators
                 var pkTableHumanCase = foreignKey.PkTableHumanCase(null);
                 var fkHasUniqueConstraint = pkCols.All(x => x.ForeignKey.HasUniqueConstraint) && relationship == Relationship.OneToOne;
 
-                if (fkHasUniqueConstraint && pkCols.Any(x => x.Column.IsNullable))
-                    continue; // This would force the column to be not null
+                // HasPrincipalKey makes the principal columns an alternate key, which EF Core makes required, so it would refuse
+                // to track a parent row with a null in one. A composite key reached this only as one-to-one before #614.
+                var compositePrincipalKey = pkCols.Count > 1 && !allPkColsArePrimaryKeys;
+                if ((fkHasUniqueConstraint || compositePrincipalKey) && pkCols.Any(x => x.Column.IsNullable))
+                    continue;
 
                 var flipRelationship = FlipRelationship(relationship);
                 var fkMakePropNameSingular = relationship == Relationship.OneToOne;
@@ -1584,29 +1587,26 @@ namespace Efrpg.Generators
 
             // This relationship has multiple composite keys
 
-            // childTable FK columns are exactly the primary key (they are part of primary key, and no other columns are primary keys)
-            // TODO: we could also check if they are a unique index
+            // It is one-to-one only when the child's foreign key columns are exactly its primary key or one of its unique
+            // indexes. The parent's columns decide nothing: a foreign key can only reference a key, so they are always
+            // unique, and treating that as one-to-one gave every key referencing a unique constraint a single child (#614).
             var childTableColumnsAllPrimaryKeys = (childTableCols.Count == childTableCols.Count(x => x.IsPrimaryKey)) &&
                                                   (childTableCols.Count == childTable.PrimaryKeys.Count());
 
-            // parentTable columns are exactly the primary key (they are part of primary key, and no other columns are primary keys)
-            // TODO: we could also check if they are a unique index
-            var parentTableColumnsAllPrimaryKeys = (parentTableCols.Count == parentTableCols.Count(x => x.IsPrimaryKey)) &&
-                                                   (parentTableCols.Count == parentTable.PrimaryKeys.Count());
-
-            // childTable FK columns are not only FK but also the whole PK (not only part of PK); parentTable columns are the whole PK (not only part of PK) - so it's 1:1
-            if (childTableColumnsAllPrimaryKeys && parentTableColumnsAllPrimaryKeys)
-                return Relationship.OneToOne;
-
-            // Check if covered by a unique constraint
-            if (fkCols.All(x => x.ForeignKey.HasUniqueConstraint))
-                return Relationship.OneToOne;
-
-            // Check if covered by a unique index on PK table
-            if (parentTableCols.All(x => x.IsUnique))
+            if (childTableColumnsAllPrimaryKeys || AreExactlyAUniqueIndex(childTableCols) || fkCols.All(x => x.ForeignKey.IsDeclaredUnique))
                 return Relationship.OneToOne;
 
             return Relationship.ManyToOne;
+        }
+
+        private static bool AreExactlyAUniqueIndex(List<Column> columns)
+        {
+            return columns
+                .SelectMany(c => c.Indexes
+                    .Where(i => (i.IsUnique || i.IsUniqueConstraint) && i.ColumnCount == columns.Count)
+                    .Select(i => new { i.IndexName, Column = c }))
+                .GroupBy(x => x.IndexName)
+                .Any(g => g.Select(x => x.Column).Distinct().Count() == columns.Count);
         }
 
         // Calculates the relationship between a child table and it's parent table.

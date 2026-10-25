@@ -1470,9 +1470,14 @@ namespace Efrpg.PostgreSQL
         // Reverse navigation
 
         /// <summary>
-        /// Parent (One-to-One) ParentComposite pointed by [child_composite].([parent_key_one], [parent_key_two]) (fk_child_composite_parent)
+        /// Child ChildComposites where [child_composite].([parent_key_one], [parent_key_two]) point to this entity (fk_child_composite_parent)
         /// </summary>
-        public virtual ChildComposite ChildComposite { get; set; } // child_composite.fk_child_composite_parent
+        public virtual ICollection<ChildComposite> ChildComposites { get; set; } // child_composite.fk_child_composite_parent
+
+        public ParentComposite()
+        {
+            ChildComposites = new List<ChildComposite>();
+        }
     }
 
     // person
@@ -1878,7 +1883,7 @@ namespace Efrpg.PostgreSQL
             Property(x => x.Description).HasColumnName(@"description").HasColumnType("character varying").IsOptional().HasMaxLength(50);
 
             // Foreign keys
-            HasRequired(a => a.ParentComposite).WithOptional(b => b.ChildComposite).WillCascadeOnDelete(false); // fk_child_composite_parent
+            HasRequired(a => a.ParentComposite).WithMany(b => b.ChildComposites).HasForeignKey(c => new { c.ParentKeyOne, c.ParentKeyTwo }).WillCascadeOnDelete(false); // fk_child_composite_parent
         }
     }
 

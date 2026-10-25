@@ -1824,9 +1824,9 @@ namespace Efrpg.Oracle
         // Reverse navigation
 
         /// <summary>
-        /// Parent (One-to-One) PARENT_COMPOSITE pointed by [CHILD_COMPOSITE].([PARENT_KEY_ONE], [PARENT_KEY_TWO]) (FK_CHILD_COMPOSITE_PARENT)
+        /// Child CHILD_COMPOSITEs where [CHILD_COMPOSITE].([PARENT_KEY_ONE], [PARENT_KEY_TWO]) point to this entity (FK_CHILD_COMPOSITE_PARENT)
         /// </summary>
-        public virtual CHILD_COMPOSITE? CHILD_COMPOSITE { get; set; } // CHILD_COMPOSITE.FK_CHILD_COMPOSITE_PARENT
+        public virtual ICollection<CHILD_COMPOSITE> CHILD_COMPOSITEs { get; set; } // CHILD_COMPOSITE.FK_CHILD_COMPOSITE_PARENT
 
         /// <summary>
         /// Child PRINCIPAL_KEY_Children where [PRINCIPAL_KEY_CHILD].[PARENT_ALT_KEY] point to this entity (FK_PRINCIPAL_KEY_CHILD)
@@ -1835,6 +1835,7 @@ namespace Efrpg.Oracle
 
         public PARENT_COMPOSITE()
         {
+            CHILD_COMPOSITEs = new List<CHILD_COMPOSITE>();
             PRINCIPAL_KEY_Children = new List<PRINCIPAL_KEY_CHILD>();
         }
     }
@@ -2163,7 +2164,7 @@ namespace Efrpg.Oracle
             builder.Property(x => x.DESCRIPTION).HasColumnName(@"DESCRIPTION").HasColumnType("varchar2(50)").IsRequired(false).HasMaxLength(50);
 
             // Foreign keys
-            builder.HasOne(a => a.PARENT_COMPOSITE).WithOne(b => b.CHILD_COMPOSITE).HasForeignKey<CHILD_COMPOSITE>(c => new { c.PARENT_KEY_ONE, c.PARENT_KEY_TWO }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_CHILD_COMPOSITE_PARENT");
+            builder.HasOne(a => a.PARENT_COMPOSITE).WithMany(b => b.CHILD_COMPOSITEs).HasForeignKey(c => new { c.PARENT_KEY_ONE, c.PARENT_KEY_TWO }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_CHILD_COMPOSITE_PARENT");
 
             builder.HasIndex(x => new { x.PARENT_KEY_ONE, x.PARENT_KEY_TWO }).HasDatabaseName("IX_CHILD_COMPOSITE_PARENT");
         }

@@ -2013,9 +2013,9 @@ namespace Efrpg.PostgreSQL
         // Reverse navigation
 
         /// <summary>
-        /// Parent (One-to-One) ParentComposite pointed by [child_composite].([parent_key_one], [parent_key_two]) (fk_child_composite_parent)
+        /// Child ChildComposites where [child_composite].([parent_key_one], [parent_key_two]) point to this entity (fk_child_composite_parent)
         /// </summary>
-        public virtual ChildComposite? ChildComposite { get; set; } // child_composite.fk_child_composite_parent
+        public virtual ICollection<ChildComposite> ChildComposites { get; set; } // child_composite.fk_child_composite_parent
 
         /// <summary>
         /// Child PrincipalKeyChilds where [principal_key_child].[parent_alt_key] point to this entity (fk_principal_key_child)
@@ -2024,6 +2024,7 @@ namespace Efrpg.PostgreSQL
 
         public ParentComposite()
         {
+            ChildComposites = new List<ChildComposite>();
             PrincipalKeyChilds = new List<PrincipalKeyChild>();
         }
     }
@@ -2435,7 +2436,7 @@ namespace Efrpg.PostgreSQL
             builder.Property(x => x.Description).HasColumnName(@"description").HasColumnType("character varying(50)").IsRequired(false).HasMaxLength(50);
 
             // Foreign keys
-            builder.HasOne(a => a.ParentComposite).WithOne(b => b.ChildComposite).HasForeignKey<ChildComposite>(c => new { c.ParentKeyOne, c.ParentKeyTwo }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("fk_child_composite_parent");
+            builder.HasOne(a => a.ParentComposite).WithMany(b => b.ChildComposites).HasForeignKey(c => new { c.ParentKeyOne, c.ParentKeyTwo }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("fk_child_composite_parent");
 
             builder.HasIndex(x => new { x.ParentKeyOne, x.ParentKeyTwo }).HasDatabaseName("ix_child_composite_parent");
         }

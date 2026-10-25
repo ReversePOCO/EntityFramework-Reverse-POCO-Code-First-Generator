@@ -4750,14 +4750,20 @@ namespace Efrpg.V3TestE8d
         // Reverse navigation
 
         /// <summary>
-        /// Parent (One-to-One) Burak2 pointed by [Burak1].([id], [num]) (FK_Burak_Test2)
+        /// Child Burak1 where [Burak1].([id], [num]) point to this entity (FK_Burak_Test2)
         /// </summary>
-        public virtual Burak1? Burak1_Id { get; set; } // Burak1.FK_Burak_Test2
+        public virtual ICollection<Burak1> Burak1_Id { get; set; } // Burak1.FK_Burak_Test2
 
         /// <summary>
-        /// Parent (One-to-One) Burak2 pointed by [Burak1].([id_t], [num]) (FK_Burak_Test1)
+        /// Child Burak1 where [Burak1].([id_t], [num]) point to this entity (FK_Burak_Test1)
         /// </summary>
-        public virtual Burak1? Burak1_IdT { get; set; } // Burak1.FK_Burak_Test1
+        public virtual ICollection<Burak1> Burak1_IdT { get; set; } // Burak1.FK_Burak_Test1
+
+        public Burak2()
+        {
+            Burak1_Id = new List<Burak1>();
+            Burak1_IdT = new List<Burak1>();
+        }
     }
 
     // CalculatedColumnNotNull
@@ -5370,9 +5376,14 @@ namespace Efrpg.V3TestE8d
         // Reverse navigation
 
         /// <summary>
-        /// Parent (One-to-One) HasPrincipalKeyTestParent pointed by [HasPrincipalKeyTestChild].([A], [B]) (FK_HasPrincipalKey_AB)
+        /// Child HasPrincipalKeyTestChilds where [HasPrincipalKeyTestChild].([A], [B]) point to this entity (FK_HasPrincipalKey_AB)
         /// </summary>
-        public virtual HasPrincipalKeyTestChild? HasPrincipalKeyTestChild { get; set; } // HasPrincipalKeyTestChild.FK_HasPrincipalKey_AB
+        public virtual ICollection<HasPrincipalKeyTestChild> HasPrincipalKeyTestChilds { get; set; } // HasPrincipalKeyTestChild.FK_HasPrincipalKey_AB
+
+        public HasPrincipalKeyTestParent()
+        {
+            HasPrincipalKeyTestChilds = new List<HasPrincipalKeyTestChild>();
+        }
     }
 
     // header
@@ -6575,8 +6586,8 @@ namespace Efrpg.V3TestE8d
             builder.Property(x => x.Num).HasColumnName(@"num").HasColumnType("bigint").IsRequired();
 
             // Foreign keys
-            builder.HasOne(a => a.Burak2_Id).WithOne(b => b.Burak1_Id).HasPrincipalKey<Burak2>(p => new { p.Id, p.Num }).HasForeignKey<Burak1>(c => new { c.Id, c.Num }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_Burak_Test2");
-            builder.HasOne(a => a.Burak2_IdT).WithOne(b => b.Burak1_IdT).HasPrincipalKey<Burak2>(p => new { p.Id, p.Num }).HasForeignKey<Burak1>(c => new { c.IdT, c.Num }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_Burak_Test1");
+            builder.HasOne(a => a.Burak2_Id).WithMany(b => b.Burak1_Id).HasPrincipalKey(p => new { p.Id, p.Num }).HasForeignKey(c => new { c.Id, c.Num }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_Burak_Test2");
+            builder.HasOne(a => a.Burak2_IdT).WithMany(b => b.Burak1_IdT).HasPrincipalKey(p => new { p.Id, p.Num }).HasForeignKey(c => new { c.IdT, c.Num }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_Burak_Test1");
         }
     }
 
@@ -7186,7 +7197,7 @@ namespace Efrpg.V3TestE8d
             builder.Property(x => x.D).HasColumnName(@"D").HasColumnType("int").IsRequired(false);
 
             // Foreign keys
-            builder.HasOne(a => a.HasPrincipalKeyTestParent).WithOne(b => b.HasPrincipalKeyTestChild).HasPrincipalKey<HasPrincipalKeyTestParent>(p => new { p.Aa, p.Bb }).HasForeignKey<HasPrincipalKeyTestChild>(c => new { c.A, c.B }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_HasPrincipalKey_AB");
+            builder.HasOne(a => a.HasPrincipalKeyTestParent).WithMany(b => b.HasPrincipalKeyTestChilds).HasPrincipalKey(p => new { p.Aa, p.Bb }).HasForeignKey(c => new { c.A, c.B }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_HasPrincipalKey_AB");
         }
     }
 

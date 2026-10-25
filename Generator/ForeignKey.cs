@@ -28,6 +28,10 @@ namespace Efrpg
         public bool IncludeReverseNavigation { get; set; }
         public bool IsNotEnforced { get; set; }
 
+        // AddRelationship's isUnique: the caller says it is one-to-one. HasUniqueConstraint cannot say that, because
+        // for a key read from the database it only means the parent table has a unique constraint somewhere.
+        public bool IsDeclaredUnique { get; set; }
+
         public ForeignKey(string fkTableName, string fkSchema, string pkTableName, string pkSchema, string fkColumn,
             string pkColumn, string constraintName, string fkTableNameFiltered, string pkTableNameFiltered, int ordinal,
             bool cascadeOnDelete, bool isNotEnforced, string parentName, string childName, bool hasUniqueConstraint)
