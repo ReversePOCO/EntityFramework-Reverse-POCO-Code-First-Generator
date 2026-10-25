@@ -286,7 +286,7 @@ namespace Efrpg
                 return;
             }
 
-            // Validate default. A date or time is a C# string literal by now, which TryParse rejects for its quotes (#204)
+            // Validate default. A date or time is a C# string literal by now, which TryParse rejects for its quotes
             var literalValue = Default.TrimStart('@').Trim('"');
             switch (lowerPropertyType)
             {

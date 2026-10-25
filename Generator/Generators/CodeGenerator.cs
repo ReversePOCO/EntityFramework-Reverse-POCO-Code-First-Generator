@@ -103,7 +103,7 @@ namespace Efrpg.Generators
                     {
                         HasProcResult = returnsProcResult,
                         ExecutesAsCommand = sp.ExecutesAsStoredProcedureCommand(),
-                        IncludeModelBuilder = !entityNames.Contains(sp.WriteStoredProcReturnModelName(filter)), // #754 HasNoKey() would strip its key
+                        IncludeModelBuilder = !entityNames.Contains(sp.WriteStoredProcReturnModelName(filter)), // HasNoKey() would strip its key
 
                         CommandText = sp.WriteStoredProcFunctionQualifiedName(),
                         CommandParameters = "new[] { " +

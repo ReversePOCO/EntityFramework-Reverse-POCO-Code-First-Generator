@@ -1436,7 +1436,7 @@ namespace Efrpg.Generators
                 var fkHasUniqueConstraint = pkCols.All(x => x.ForeignKey.HasUniqueConstraint) && relationship == Relationship.OneToOne;
 
                 // HasPrincipalKey makes the principal columns an alternate key, which EF Core makes required, so it would refuse
-                // to track a parent row with a null in one. A composite key reached this only as one-to-one before #614.
+                // to track a parent row with a null in one.
                 var compositePrincipalKey = pkCols.Count > 1 && !allPkColsArePrimaryKeys;
                 if ((fkHasUniqueConstraint || compositePrincipalKey) && pkCols.Any(x => x.Column.IsNullable))
                     continue;
@@ -1589,7 +1589,7 @@ namespace Efrpg.Generators
 
             // It is one-to-one only when the child's foreign key columns are exactly its primary key or one of its unique
             // indexes. The parent's columns decide nothing: a foreign key can only reference a key, so they are always
-            // unique, and treating that as one-to-one gave every key referencing a unique constraint a single child (#614).
+            // unique, and treating that as one-to-one would give every key referencing a unique constraint a single child.
             var childTableColumnsAllPrimaryKeys = (childTableCols.Count == childTableCols.Count(x => x.IsPrimaryKey)) &&
                                                   (childTableCols.Count == childTable.PrimaryKeys.Count());
 

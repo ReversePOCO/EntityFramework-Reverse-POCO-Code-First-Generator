@@ -698,7 +698,7 @@ namespace Efrpg
 
         /// <summary>
         ///     Gives a mapped procedure whose result set could not be read a result set, so it returns the mapped type
-        ///     rather than int (#709). Discovery comes back empty for temp tables, dynamic SQL, and always on MySQL,
+        ///     rather than int. Discovery comes back empty for temp tables, dynamic SQL, and always on MySQL,
         ///     Oracle and SQLite, which is exactly when a mapping is needed. The set has no columns: the type declares them.
         /// </summary>
         public void UseReturnTypeMappingWhenNoResultSetWasRead()

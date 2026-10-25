@@ -25,9 +25,14 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Entities
         public virtual Burak1 Burak1_Id { get; set; } // Burak1.FK_Burak_Test2
 
         /// <summary>
-        /// Parent (One-to-One) Burak2 pointed by [Burak1].([id_t], [num]) (FK_Burak_Test1)
+        /// Child Burak1 where [Burak1].([id_t], [num]) point to this entity (FK_Burak_Test1)
         /// </summary>
-        public virtual Burak1 Burak1_IdT { get; set; } // Burak1.FK_Burak_Test1
+        public virtual ICollection<Burak1> Burak1_IdT { get; set; } // Burak1.FK_Burak_Test1
+
+        public Burak2()
+        {
+            Burak1_IdT = new List<Burak1>();
+        }
     }
 
 }

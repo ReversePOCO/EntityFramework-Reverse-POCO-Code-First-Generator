@@ -23,9 +23,14 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Entities
         // Reverse navigation
 
         /// <summary>
-        /// Parent (One-to-One) HasPrincipalKeyTestParent pointed by [HasPrincipalKeyTestChild].([A], [B]) (FK_HasPrincipalKey_AB)
+        /// Child HasPrincipalKeyTestChilds where [HasPrincipalKeyTestChild].([A], [B]) point to this entity (FK_HasPrincipalKey_AB)
         /// </summary>
-        public virtual HasPrincipalKeyTestChild HasPrincipalKeyTestChild { get; set; } // HasPrincipalKeyTestChild.FK_HasPrincipalKey_AB
+        public virtual ICollection<HasPrincipalKeyTestChild> HasPrincipalKeyTestChilds { get; set; } // HasPrincipalKeyTestChild.FK_HasPrincipalKey_AB
+
+        public HasPrincipalKeyTestParent()
+        {
+            HasPrincipalKeyTestChilds = new List<HasPrincipalKeyTestChild>();
+        }
     }
 
 }

@@ -23,7 +23,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Configuration
 
             // Foreign keys
             builder.HasOne(a => a.Burak2_Id).WithOne(b => b.Burak1_Id).HasForeignKey<Burak1>(c => c.Id).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_Burak_Test2");
-            builder.HasOne(a => a.Burak2_IdT).WithOne(b => b.Burak1_IdT).HasPrincipalKey<Burak2>(p => new { p.Id, p.Num }).HasForeignKey<Burak1>(c => new { c.IdT, c.Num }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_Burak_Test1");
+            builder.HasOne(a => a.Burak2_IdT).WithMany(b => b.Burak1_IdT).HasPrincipalKey(p => new { p.Id, p.Num }).HasForeignKey(c => new { c.IdT, c.Num }).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_Burak_Test1");
         }
     }
 
