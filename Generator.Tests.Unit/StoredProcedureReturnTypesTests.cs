@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using Efrpg;
+using Efrpg.Templates;
 using Generator.Tests.Common;
 using Generator.Tests.Unit.DocSamples;
 using NUnit.Framework;
@@ -63,9 +65,77 @@ namespace Generator.Tests.Unit
             Assert.That(generated, Does.Contain("modelBuilder.Entity<GetStudentsByCourseReturnModel>().HasNoKey();"));
         }
 
+        [Test]
+        public void GenerateCode_ProcWhoseResultSetCouldNotBeReadIsMapped_ReturnsAListOfTheMappedType()
+        {
+            // #709 - the mapping was ignored whenever discovery came back empty, which is exactly when it is needed.
+            var generated = GenerateWithProc(LegacyReportDiscoveryFailed, () => Settings.StoredProcedureReturnTypes.Add("GetLegacyReport", "LegacyReport"));
+
+            Assert.That(generated, Does.Contain("List<LegacyReport> GetLegacyReport(int? courseId);"));
+        }
+
+        [Test]
+        public void GenerateCode_ProcWhoseResultSetCouldNotBeReadIsMapped_KeepsTheProcResultOverload()
+        {
+            var generated = GenerateWithProc(LegacyReportDiscoveryFailed, () => Settings.StoredProcedureReturnTypes.Add("GetLegacyReport", "LegacyReport"));
+
+            Assert.That(generated, Does.Contain("List<LegacyReport> GetLegacyReport(int? courseId, out int procResult);"));
+        }
+
+        [Test]
+        public void GenerateCode_ProcWhoseResultSetCouldNotBeReadIsMapped_ReadsTheRowsAsTheMappedType()
+        {
+            var generated = GenerateWithProc(LegacyReportDiscoveryFailed, () => Settings.StoredProcedureReturnTypes.Add("GetLegacyReport", "LegacyReport"));
+
+            Assert.That(generated, Does.Contain("Set<LegacyReport>()").And.Contain("modelBuilder.Entity<LegacyReport>().HasNoKey();"));
+        }
+
+        [Test]
+        public void GenerateCode_ProcWhoseResultSetCouldNotBeReadIsMapped_DropsTheUnableToDetermineComment()
+        {
+            var generated = GenerateWithProc(LegacyReportDiscoveryFailed, () => Settings.StoredProcedureReturnTypes.Add("GetLegacyReport", "LegacyReport"));
+
+            Assert.That(generated, Does.Not.Contain("Unable to determine return model for 'GetLegacyReport'"));
+        }
+
+        [Test]
+        public void GenerateCode_ProcWhoseResultSetCouldNotBeReadIsMappedOnEf6_ReadsTheRowsAsTheMappedType()
+        {
+            var generated = GenerateWithProc(LegacyReportDiscoveryFailed, () =>
+            {
+                Settings.TemplateType = TemplateType.Ef6;
+                Settings.StoredProcedureReturnTypes.Add("GetLegacyReport", "LegacyReport");
+            });
+
+            Assert.That(generated, Does.Contain("Database.SqlQuery<LegacyReport>("));
+        }
+
+        [Test]
+        public void GenerateCode_ProcWhoseResultSetCouldNotBeReadNotMapped_StillReturnsInt()
+        {
+            var generated = GenerateWithProc(LegacyReportDiscoveryFailed, () => { });
+
+            Assert.That(generated, Does.Contain("int GetLegacyReport(int? courseId);"));
+        }
+
+        /// <summary>
+        ///     What the efrpg tool sends when SET FMTONLY discovery throws: no result set, and the message.
+        /// </summary>
+        private const string LegacyReportDiscoveryFailed =
+            @"<Row schema=""dbo"" name=""GetLegacyReport"" isTableValuedFunction=""false"" isScalarValuedFunction=""false"" isStoredProcedure=""true"" returnModelsRead=""true"" returnModelError=""Invalid column name 'RankPosCW'."">
+                <Parameter ordinal=""1"" mode=""In"" name=""@CourseId"" nameHumanCase="""" dataType=""int"" returnDataType="""" sqlDbType=""Int"" returnSqlDbType=""VarChar"" propertyType=""int"" returnPropertyType=""string"" userDefinedTypeName="""" dateTimePrecision=""0"" maxLength=""0"" precision=""10"" scale=""0"" isSpatial=""false"" hasDefault=""false"" />
+              </Row>";
+
         private static string Generate(Action configure)
         {
             return DocSampleRunner.Generate(DocSampleRunner.Schema.Extras, configure);
+        }
+
+        private static string GenerateWithProc(string procRow, Action configure)
+        {
+            var payload = File.ReadAllText(DocSampleRunner.SchemaPath(DocSampleRunner.Schema.Extras))
+                .Replace("</StoredProcedures>", procRow + "</StoredProcedures>");
+            return DocSampleRunner.GenerateFromPayload(payload, configure);
         }
     }
 }

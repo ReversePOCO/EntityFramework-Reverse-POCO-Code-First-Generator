@@ -1067,6 +1067,7 @@ namespace Efrpg.Generators
                 {
                     if (!sp.ReturnModels.Any())
                     {
+                        sp.UseReturnTypeMappingWhenNoResultSetWasRead();
                         validStoredProcs.Add(sp);
                         continue;
                     }

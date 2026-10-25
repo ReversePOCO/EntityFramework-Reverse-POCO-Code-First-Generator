@@ -113,7 +113,7 @@ namespace Efrpg
 
         public string WriteStoredProcFunctionParams(bool includeProcResult, bool forInterface, bool includeCancellationToken = false)
         {
-            var willIncludeProcResult = includeProcResult && ReturnModels.Count > 0 && ReturnModels.First().Count > 0;
+            var willIncludeProcResult = includeProcResult && ReturnModels.Count > 0 && (ReturnModels.First().Count > 0 || HasReturnTypeMapping());
             var sb = new StringBuilder(255);
             var data = Parameters.Where(x => x.Mode != StoredProcedureParameterMode.Out || IsProcedureOutParameter(x)).OrderBy(x => x.Ordinal).ToList();
 
@@ -689,6 +689,22 @@ namespace Efrpg
                 }
             }
             return sb.ToString();
+        }
+
+        public bool HasReturnTypeMapping()
+        {
+            return Settings.StoredProcedureReturnTypes.ContainsKey(NameHumanCase) || Settings.StoredProcedureReturnTypes.ContainsKey(DbName);
+        }
+
+        /// <summary>
+        ///     Gives a mapped procedure whose result set could not be read a result set, so it returns the mapped type
+        ///     rather than int (#709). Discovery comes back empty for temp tables, dynamic SQL, and always on MySQL,
+        ///     Oracle and SQLite, which is exactly when a mapping is needed. The set has no columns: the type declares them.
+        /// </summary>
+        public void UseReturnTypeMappingWhenNoResultSetWasRead()
+        {
+            if (IsStoredProcedure && ReturnModels.Count == 0 && HasReturnTypeMapping())
+                ReturnModels.Add(new List<DataColumn>());
         }
 
         public string WriteStoredProcReturnModelName(IDbContextFilter filter)
