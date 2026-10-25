@@ -376,13 +376,16 @@ using {{this}};{{#newline}}
         cmd.CommandTimeout = Database.CommandTimeout ?? cmd.CommandTimeout;{{#newline}}
         cmd.CommandType = CommandType.StoredProcedure;{{#newline}}
         cmd.CommandText = ""{{Exec}}"";{{#newline}}
+        cmd.Transaction = Database.CurrentTransaction?.UnderlyingTransaction;{{#newline}}
 {{#each Parameters}}
         cmd.Parameters.Add({{this}});{{#newline}}
 {{/each}}
 {{#newline}}
+        var wasOpen = Database.Connection.State == ConnectionState.Open;{{#newline}}
         try{{#newline}}
         {{{#newline}}
-            DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());{{#newline}}
+            if (!wasOpen){{#newline}}
+                DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());{{#newline}}
             var reader = cmd.ExecuteReader();{{#newline}}
             var objectContext = ((IObjectContextAdapter) this).ObjectContext;{{#newline}}
 {{#each ReturnModelResultSetReaderCommand}}
@@ -393,7 +396,8 @@ using {{this}};{{#newline}}
         }{{#newline}}
         finally{{#newline}}
         {{{#newline}}
-            DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());{{#newline}}
+            if (!wasOpen){{#newline}}
+                DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());{{#newline}}
         }{{#newline}}
 {{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}
@@ -449,13 +453,16 @@ using {{this}};{{#newline}}
         cmd.CommandTimeout = Database.CommandTimeout ?? cmd.CommandTimeout;{{#newline}}
         cmd.CommandType = CommandType.StoredProcedure;{{#newline}}
         cmd.CommandText = ""{{Exec}}"";{{#newline}}
+        cmd.Transaction = Database.CurrentTransaction?.UnderlyingTransaction;{{#newline}}
 {{#each Parameters}}
         cmd.Parameters.Add({{this}});{{#newline}}
 {{/each}}
 {{#newline}}
+        var wasOpen = Database.Connection.State == ConnectionState.Open;{{#newline}}
         try{{#newline}}
         {{{#newline}}
-            await DbInterception.Dispatch.Connection.OpenAsync(Database.Connection, new DbInterceptionContext(), new CancellationToken()).ConfigureAwait(false);{{#newline}}
+            if (!wasOpen){{#newline}}
+                await DbInterception.Dispatch.Connection.OpenAsync(Database.Connection, new DbInterceptionContext(), new CancellationToken()).ConfigureAwait(false);{{#newline}}
             var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);{{#newline}}
             var objectContext = ((IObjectContextAdapter) this).ObjectContext;{{#newline}}
 {{#each ReturnModelResultSetReaderCommand}}
@@ -468,7 +475,8 @@ using {{this}};{{#newline}}
         }{{#newline}}
         finally{{#newline}}
         {{{#newline}}
-            DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());{{#newline}}
+            if (!wasOpen){{#newline}}
+                DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());{{#newline}}
         }{{#newline}}
 {{#newline}}
 {{WriteStoredProcFunctionSetSqlParametersFalse}}

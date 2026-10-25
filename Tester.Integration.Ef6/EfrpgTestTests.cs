@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Data;
+using System.Linq;
 using System.Reflection;
 using Generator.Tests.Common;
 using NUnit.Framework;
@@ -50,6 +51,20 @@ namespace Tester.Integration.Ef6
             Assert.AreEqual(expected, isApplicationComplete);
             Assert.AreEqual("Application", result.Single().Key);
             Assert.AreEqual(expectedResult, result.Single().Value);
+        }
+
+        // https://github.com/ReversePOCO/EntityFramework-Reverse-POCO-Code-First-Generator/issues/845
+        [Test]
+        public void StoredProcedureWithMultipleResultSets_InsideATransaction_LeavesTheConnectionOpen()
+        {
+            using (var transaction = _db.Database.BeginTransaction())
+            {
+                var result = _db.C182Test2(1);
+
+                Assert.IsNotNull(result.ResultSet1);
+                Assert.AreEqual(ConnectionState.Open, _db.Database.Connection.State);
+                transaction.Rollback();
+            }
         }
     }
 }

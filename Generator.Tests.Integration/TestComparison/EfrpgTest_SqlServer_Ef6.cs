@@ -1165,11 +1165,14 @@ namespace Efrpg.V3TestE1
             cmd.CommandTimeout = Database.CommandTimeout ?? cmd.CommandTimeout;
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.CommandText = "[dbo].[182_test2]";
+            cmd.Transaction = Database.CurrentTransaction?.UnderlyingTransaction;
             cmd.Parameters.Add(flagParam);
 
+            var wasOpen = Database.Connection.State == ConnectionState.Open;
             try
             {
-                DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());
+                if (!wasOpen)
+                    DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());
                 var reader = cmd.ExecuteReader();
                 var objectContext = ((IObjectContextAdapter) this).ObjectContext;
 
@@ -1184,7 +1187,8 @@ namespace Efrpg.V3TestE1
             }
             finally
             {
-                DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());
+                if (!wasOpen)
+                    DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());
             }
 
             return procResultData;
@@ -2023,13 +2027,16 @@ namespace Efrpg.V3TestE1
             cmd.CommandTimeout = Database.CommandTimeout ?? cmd.CommandTimeout;
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.CommandText = "[dbo].[stp_multiple_multiple_results_with_params]";
+            cmd.Transaction = Database.CurrentTransaction?.UnderlyingTransaction;
             cmd.Parameters.Add(firstValParam);
             cmd.Parameters.Add(secondValParam);
             cmd.Parameters.Add(thirdValParam);
 
+            var wasOpen = Database.Connection.State == ConnectionState.Open;
             try
             {
-                DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());
+                if (!wasOpen)
+                    DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());
                 var reader = cmd.ExecuteReader();
                 var objectContext = ((IObjectContextAdapter) this).ObjectContext;
 
@@ -2053,7 +2060,8 @@ namespace Efrpg.V3TestE1
             }
             finally
             {
-                DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());
+                if (!wasOpen)
+                    DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());
             }
 
             return procResultData;
@@ -2067,10 +2075,13 @@ namespace Efrpg.V3TestE1
             cmd.CommandTimeout = Database.CommandTimeout ?? cmd.CommandTimeout;
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.CommandText = "[dbo].[stp_multiple_results]";
+            cmd.Transaction = Database.CurrentTransaction?.UnderlyingTransaction;
 
+            var wasOpen = Database.Connection.State == ConnectionState.Open;
             try
             {
-                DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());
+                if (!wasOpen)
+                    DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());
                 var reader = cmd.ExecuteReader();
                 var objectContext = ((IObjectContextAdapter) this).ObjectContext;
 
@@ -2085,7 +2096,8 @@ namespace Efrpg.V3TestE1
             }
             finally
             {
-                DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());
+                if (!wasOpen)
+                    DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());
             }
 
             return procResultData;
@@ -2107,12 +2119,15 @@ namespace Efrpg.V3TestE1
             cmd.CommandTimeout = Database.CommandTimeout ?? cmd.CommandTimeout;
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.CommandText = "[dbo].[stp_multiple_results_with_params]";
+            cmd.Transaction = Database.CurrentTransaction?.UnderlyingTransaction;
             cmd.Parameters.Add(firstValParam);
             cmd.Parameters.Add(secondValParam);
 
+            var wasOpen = Database.Connection.State == ConnectionState.Open;
             try
             {
-                DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());
+                if (!wasOpen)
+                    DbInterception.Dispatch.Connection.Open(Database.Connection, new DbInterceptionContext());
                 var reader = cmd.ExecuteReader();
                 var objectContext = ((IObjectContextAdapter) this).ObjectContext;
 
@@ -2124,7 +2139,8 @@ namespace Efrpg.V3TestE1
             }
             finally
             {
-                DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());
+                if (!wasOpen)
+                    DbInterception.Dispatch.Connection.Close(Database.Connection, new DbInterceptionContext());
             }
 
             return procResultData;
