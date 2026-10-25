@@ -606,14 +606,23 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
             return Task.FromResult(ColourPivot(out procResult));
         }
 
-        public int ColumnNameAndTypesProc()
+        public DbSet<ColumnNameAndTypesProcReturnModel> ColumnNameAndTypesProcReturnModel { get; set; } = null!;
+        public List<ColumnNameAndTypesProcReturnModel> ColumnNameAndTypesProc()
         {
-            return 0;
+            int procResult;
+            return ColumnNameAndTypesProc(out procResult);
         }
 
-        public Task<int> ColumnNameAndTypesProcAsync(CancellationToken cancellationToken = default(CancellationToken))
+        public List<ColumnNameAndTypesProcReturnModel> ColumnNameAndTypesProc(out int procResult)
         {
-            return Task.FromResult(0);
+            procResult = 0;
+            return new List<ColumnNameAndTypesProcReturnModel>();
+        }
+
+        public Task<List<ColumnNameAndTypesProcReturnModel>> ColumnNameAndTypesProcAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            int procResult;
+            return Task.FromResult(ColumnNameAndTypesProc(out procResult));
         }
 
         public int ConvertToString(int? someValue, ref string someString)
@@ -818,6 +827,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
 
         // MinTripSequenceStartNullAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
+        // Unable to determine return model for 'MultipleReturnColumnsFromTempTable'. Error: Invalid object name '#temp'.
         public int MultipleReturnColumnsFromTempTable()
         {
             return 0;
@@ -872,24 +882,42 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
 
         // ProcTestDecimalOutputV3DefaultAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-        public int SpatialTypesNoParams()
+        public DbSet<SpatialTypesNoParamsReturnModel> SpatialTypesNoParamsReturnModel { get; set; } = null!;
+        public List<SpatialTypesNoParamsReturnModel> SpatialTypesNoParams()
         {
-            return 0;
+            int procResult;
+            return SpatialTypesNoParams(out procResult);
         }
 
-        public Task<int> SpatialTypesNoParamsAsync(CancellationToken cancellationToken = default(CancellationToken))
+        public List<SpatialTypesNoParamsReturnModel> SpatialTypesNoParams(out int procResult)
         {
-            return Task.FromResult(0);
+            procResult = 0;
+            return new List<SpatialTypesNoParamsReturnModel>();
         }
 
-        public int SpatialTypesWithParams(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography)
+        public Task<List<SpatialTypesNoParamsReturnModel>> SpatialTypesNoParamsAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            return 0;
+            int procResult;
+            return Task.FromResult(SpatialTypesNoParams(out procResult));
         }
 
-        public Task<int> SpatialTypesWithParamsAsync(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography, CancellationToken cancellationToken = default(CancellationToken))
+        public DbSet<SpatialTypesWithParamsReturnModel> SpatialTypesWithParamsReturnModel { get; set; } = null!;
+        public List<SpatialTypesWithParamsReturnModel> SpatialTypesWithParams(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography)
         {
-            return Task.FromResult(0);
+            int procResult;
+            return SpatialTypesWithParams(geometry, geography, out procResult);
+        }
+
+        public List<SpatialTypesWithParamsReturnModel> SpatialTypesWithParams(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography, out int procResult)
+        {
+            procResult = 0;
+            return new List<SpatialTypesWithParamsReturnModel>();
+        }
+
+        public Task<List<SpatialTypesWithParamsReturnModel>> SpatialTypesWithParamsAsync(NetTopologySuite.Geometries.Geometry geometry, NetTopologySuite.Geometries.Point geography, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            int procResult;
+            return Task.FromResult(SpatialTypesWithParams(geometry, geography, out procResult));
         }
 
         public DbSet<SpNullableStringReproReturnModel> SpNullableStringReproReturnModel { get; set; } = null!;
@@ -1192,6 +1220,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Contexts
             return Task.FromResult(XmlDataV1(out procResult));
         }
 
+        // Unable to determine return model for 'XmlDataV2'. Error: Mutator 'modify()' on '@someXml' cannot be called on a null value.
         public int XmlDataV2()
         {
             return 0;

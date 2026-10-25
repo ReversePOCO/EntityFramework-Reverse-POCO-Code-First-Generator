@@ -257,6 +257,7 @@ Entities\C182Test1ReturnModel.cs
 Entities\C182Test2ReturnModel.cs
 Entities\CheckIfApplicationIsCompleteReturnModel.cs
 Entities\ColourPivotReturnModel.cs
+Entities\ColumnNameAndTypesProcReturnModel.cs
 Entities\CsvToIntReturnModel.cs
 Entities\CustomSchema_CsvToIntWithSchemaReturnModel.cs
 Entities\DboProcDataFromFfrsAndDboReturnModel.cs
@@ -269,6 +270,8 @@ Entities\FFRS_DataFromDboReturnModel.cs
 Entities\FkTest_HelloReturnModel.cs
 Entities\GetSmallDecimalTestReturnModel.cs
 Entities\SpacedColumnTvfReturnModel.cs
+Entities\SpatialTypesNoParamsReturnModel.cs
+Entities\SpatialTypesWithParamsReturnModel.cs
 Entities\SpNullableStringReproReturnModel.cs
 Entities\StoredProcWithDefaultsReturnModel.cs
 Entities\StpMultipleIdenticalResultsReturnModel.cs
