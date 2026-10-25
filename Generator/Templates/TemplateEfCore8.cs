@@ -359,11 +359,13 @@ using {{this}};{{#newline}}
 {{#newline}}
 {{#each storedProcs}}
 {{#if SingleReturnModel}}
+{{#if IncludeModelBuilder}}
         modelBuilder.{{StoredProcModelBuilderCommand}}<{{ReturnModelName}}>(){{StoredProcModelBuilderPostCommand}};{{#newline}}
 {{#if HasColumnMappings}}
 {{#each ColumnMappings}}
         {{this}}{{#newline}}
 {{/each}}
+{{/if}}
 {{/if}}
 {{/if}}
 {{/each}}

@@ -46,6 +46,7 @@ namespace Efrpg.Generators
             {
                 // Every EXEC below is T-SQL. Any other provider gets its own call statement in all three places.
                 var returnsProcResult = StoredProcedure.ReturnsProcResult();
+                var entityNames = new HashSet<string>(_tables.Select(t => t.DbSetName));
                 _storedProcs = filter.StoredProcs
                     .Where(s => s.IsStoredProcedure)
                     .OrderBy(x => x.NameHumanCase)
@@ -102,6 +103,8 @@ namespace Efrpg.Generators
                     {
                         HasProcResult = returnsProcResult,
                         ExecutesAsCommand = sp.ExecutesAsStoredProcedureCommand(),
+                        IncludeModelBuilder = !entityNames.Contains(sp.WriteStoredProcReturnModelName(filter)), // #754 HasNoKey() would strip its key
+
                         CommandText = sp.WriteStoredProcFunctionQualifiedName(),
                         CommandParameters = "new[] { " +
                                             string.Join(", ", sp.Parameters.OrderBy(x => x.Ordinal).Select(sp.WriteStoredProcSqlParameterName)) + " }"

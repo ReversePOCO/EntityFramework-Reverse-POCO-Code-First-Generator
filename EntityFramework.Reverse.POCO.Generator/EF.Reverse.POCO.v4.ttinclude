@@ -3180,6 +3180,7 @@
             {
                 // Every EXEC below is T-SQL. Any other provider gets its own call statement in all three places.
                 var returnsProcResult = StoredProcedure.ReturnsProcResult();
+                var entityNames = new HashSet<string>(_tables.Select(t => t.DbSetName));
                 _storedProcs = filter.StoredProcs
                     .Where(s => s.IsStoredProcedure)
                     .OrderBy(x => x.NameHumanCase)
@@ -3236,6 +3237,8 @@
                     {
                         HasProcResult = returnsProcResult,
                         ExecutesAsCommand = sp.ExecutesAsStoredProcedureCommand(),
+                        IncludeModelBuilder = !entityNames.Contains(sp.WriteStoredProcReturnModelName(filter)), // #754 HasNoKey() would strip its key
+
                         CommandText = sp.WriteStoredProcFunctionQualifiedName(),
                         CommandParameters = "new[] { " +
                                             string.Join(", ", sp.Parameters.OrderBy(x => x.Ordinal).Select(sp.WriteStoredProcSqlParameterName)) + " }"
@@ -7176,6 +7179,7 @@
         public string ExecWithNoReturnModel { get; }
         public List<ResultSetResultReaderCommand> ReturnModelResultSetReaderCommand { get; }
         public bool CreateDbSetForReturnModel { get; set; }
+        public bool IncludeModelBuilder { get; set; } // false when the return type is an entity, which its own configuration maps
         public List<string> ColumnMappings { get; set; } = new List<string>();
         public bool HasColumnMappings => ColumnMappings != null && ColumnMappings.Count > 0;
         public bool HasError { get; }
@@ -17664,11 +17668,13 @@ using {{this}};{{#newline}}
 {{#newline}}
 {{#each storedProcs}}
 {{#if SingleReturnModel}}
+{{#if IncludeModelBuilder}}
         modelBuilder.{{StoredProcModelBuilderCommand}}<{{ReturnModelName}}>(){{StoredProcModelBuilderPostCommand}};{{#newline}}
 {{#if HasColumnMappings}}
 {{#each ColumnMappings}}
         {{this}}{{#newline}}
 {{/each}}
+{{/if}}
 {{/if}}
 {{/if}}
 {{/each}}

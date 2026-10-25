@@ -37,6 +37,7 @@ namespace Efrpg.Generators
         public string ExecWithNoReturnModel { get; }
         public List<ResultSetResultReaderCommand> ReturnModelResultSetReaderCommand { get; }
         public bool CreateDbSetForReturnModel { get; set; }
+        public bool IncludeModelBuilder { get; set; } // false when the return type is an entity, which its own configuration maps
         public List<string> ColumnMappings { get; set; } = new List<string>();
         public bool HasColumnMappings => ColumnMappings != null && ColumnMappings.Count > 0;
         public bool HasError { get; }
