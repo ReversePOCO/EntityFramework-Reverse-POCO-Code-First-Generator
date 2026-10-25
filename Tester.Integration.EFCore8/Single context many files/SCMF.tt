@@ -26,7 +26,7 @@
     Settings.PocoConfigurationFolder  = @"Configuration"; // Sub-folder you would like your Configuration mappings to be added to. e.g. @"Data\Configuration"
     Settings.UseFolderNameInNamespace = true;             // If true, appends the sub-folder name to the namespace. e.g. PocoFolder = "Entities" => namespace MyProject.Entities
 
-Settings.Enumerations = new List<EnumerationSettings>
+    Settings.Enumerations = new List<EnumerationSettings>
     {
         // Example
         new EnumerationSettings
