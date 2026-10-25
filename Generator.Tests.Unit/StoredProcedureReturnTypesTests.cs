@@ -118,6 +118,24 @@ namespace Generator.Tests.Unit
             Assert.That(generated, Does.Contain("int GetLegacyReport(int? courseId);"));
         }
 
+        [Test]
+        public void GenerateCode_TempTableProcMapped_ReturnsAListOfTheMappedType()
+        {
+            // #833 - nothing in the payload says what the procedure returns, so the mapping is the only source of it.
+            var generated = GenerateWithProc(TestSp2SelectsFromATempTable, () => Settings.StoredProcedureReturnTypes.Add("Test_SP2", "TestSp2Result"));
+
+            Assert.That(generated, Does.Contain("List<TestSp2Result> TestSp2();")
+                .And.Contain("Task<List<TestSp2Result>> TestSp2Async(CancellationToken cancellationToken = default(CancellationToken));"));
+        }
+
+        /// <summary>
+        ///     What the efrpg tool sends for a procedure that selects from a temp table. SET FMTONLY never creates the
+        ///     table, so both the schema-only reader and FillSchema fail with "Invalid object name '#temp'", and the tool
+        ///     swallows that: no result set, and no error either.
+        /// </summary>
+        private const string TestSp2SelectsFromATempTable =
+            @"<Row schema=""dbo"" name=""Test_SP2"" isTableValuedFunction=""false"" isScalarValuedFunction=""false"" isStoredProcedure=""true"" returnModelsRead=""true"" returnModelError="""" />";
+
         /// <summary>
         ///     What the efrpg tool sends when SET FMTONLY discovery throws: no result set, and the message.
         /// </summary>

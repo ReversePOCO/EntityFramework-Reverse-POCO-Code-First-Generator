@@ -284,8 +284,9 @@ public interface IV10EfrpgTestDbContext : IDisposable
     int MinTripSequenceStartNull(ref DateTime? minTripSequenceStartParam);
     // MinTripSequenceStartNullAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-    int MultipleReturnColumnsFromTempTable();
-    Task<int> MultipleReturnColumnsFromTempTableAsync(CancellationToken cancellationToken = default(CancellationToken));
+    List<TempTableResult> MultipleReturnColumnsFromTempTable();
+    List<TempTableResult> MultipleReturnColumnsFromTempTable(out int procResult);
+    Task<List<TempTableResult>> MultipleReturnColumnsFromTempTableAsync(CancellationToken cancellationToken = default(CancellationToken));
 
     int NvarcharTest(string maxOutputParam, string normalOutputParam);
     Task<int> NvarcharTestAsync(string maxOutputParam, string normalOutputParam, CancellationToken cancellationToken = default(CancellationToken));
@@ -705,6 +706,7 @@ public partial class V10EfrpgTestDbContext : DbContext, IV10EfrpgTestDbContext
         modelBuilder.Entity<FkTest_HelloReturnModel>().HasNoKey();
         modelBuilder.Entity<GetSmallDecimalTestReturnModel>().HasNoKey();
         modelBuilder.Entity<GetSmallDecimalTestReturnModel>().Property(e => e.KoeffVed).HasPrecision(4, 4);
+        modelBuilder.Entity<TempTableResult>().HasNoKey();
         modelBuilder.Entity<SpNullableStringReproReturnModel>().HasNoKey();
         modelBuilder.Entity<StoredProcWithDefaultsReturnModel>().HasNoKey();
         modelBuilder.Entity<StpMultipleIdenticalResultsReturnModel>().HasNoKey();
@@ -1434,22 +1436,32 @@ public partial class V10EfrpgTestDbContext : DbContext, IV10EfrpgTestDbContext
 
     // MinTripSequenceStartNullAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-    public int MultipleReturnColumnsFromTempTable()
+    public List<TempTableResult> MultipleReturnColumnsFromTempTable()
     {
-        var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
-
-        Database.ExecuteSqlRaw("EXEC @procResult = [dbo].[MultipleReturnColumnsFromTempTable] ", procResultParam);
-
-        return (int)procResultParam.Value;
+        int procResult;
+        return MultipleReturnColumnsFromTempTable(out procResult);
     }
 
-    public async Task<int> MultipleReturnColumnsFromTempTableAsync(CancellationToken cancellationToken = default(CancellationToken))
+    public List<TempTableResult> MultipleReturnColumnsFromTempTable(out int procResult)
     {
         var procResultParam = new SqlParameter { ParameterName = "@procResult", SqlDbType = SqlDbType.Int, Direction = ParameterDirection.Output };
+        const string sqlCommand = "EXEC @procResult = [dbo].[MultipleReturnColumnsFromTempTable]";
+        var procResultData = Set<TempTableResult>()
+            .FromSqlRaw(sqlCommand, procResultParam)
+            .ToList();
 
-        await Database.ExecuteSqlRawAsync("EXEC @procResult = [dbo].[MultipleReturnColumnsFromTempTable]",  new[] {procResultParam}, cancellationToken);
+        procResult = (int) procResultParam.Value;
+        return procResultData;
+    }
 
-        return (int)procResultParam.Value;
+    public async Task<List<TempTableResult>> MultipleReturnColumnsFromTempTableAsync(CancellationToken cancellationToken = default(CancellationToken))
+    {
+        const string sqlCommand = "EXEC [dbo].[MultipleReturnColumnsFromTempTable]";
+        var procResultData = await Set<TempTableResult>()
+            .FromSqlRaw(sqlCommand)
+            .ToListAsync(cancellationToken);
+
+        return procResultData;
     }
 
     public int NvarcharTest(string maxOutputParam = "hello", string normalOutputParam = "world")
@@ -3287,14 +3299,23 @@ public partial class FakeV10EfrpgTestDbContext : IV10EfrpgTestDbContext
 
     // MinTripSequenceStartNullAsync() cannot be created due to having out parameters, or is relying on the procedure result (int)
 
-    public int MultipleReturnColumnsFromTempTable()
+    public DbSet<TempTableResult> TempTableResult { get; set; } = null!;
+    public List<TempTableResult> MultipleReturnColumnsFromTempTable()
     {
-        return 0;
+        int procResult;
+        return MultipleReturnColumnsFromTempTable(out procResult);
     }
 
-    public Task<int> MultipleReturnColumnsFromTempTableAsync(CancellationToken cancellationToken = default(CancellationToken))
+    public List<TempTableResult> MultipleReturnColumnsFromTempTable(out int procResult)
     {
-        return Task.FromResult(0);
+        procResult = 0;
+        return new List<TempTableResult>();
+    }
+
+    public Task<List<TempTableResult>> MultipleReturnColumnsFromTempTableAsync(CancellationToken cancellationToken = default(CancellationToken))
+    {
+        int procResult;
+        return Task.FromResult(MultipleReturnColumnsFromTempTable(out procResult));
     }
 
     public int NvarcharTest(string maxOutputParam = "hello", string normalOutputParam = "world")

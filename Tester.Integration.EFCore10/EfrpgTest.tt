@@ -87,6 +87,10 @@
         enumDefinitions.Add(new EnumDefinition { Schema = "EnumTest", Table = "*",             Column = "AlternateEnumId", EnumType = "DaysOfWeek" });
     };
 
+    // #833 MultipleReturnColumnsFromTempTable selects from a #temp table, which SET FMTONLY discovery cannot see, so
+    // it would return int. Mapped, it returns the hand-written TempTableResult in TempTableResult.cs.
+    Settings.StoredProcedureReturnTypes.Add("MultipleReturnColumnsFromTempTable", "TempTableResult");
+
     Settings.AddOwnedEntityMappings = delegate (List<OwnedEntityMapping> mappings)
     {
         // Customer table: two Address-typed owned entities (billing + shipping).
