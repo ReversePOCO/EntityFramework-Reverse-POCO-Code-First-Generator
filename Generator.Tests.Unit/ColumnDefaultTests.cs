@@ -222,12 +222,27 @@ namespace Generator.Tests.Unit
         [TestCase("DateTime", "(getdate())",        "DateTime.Now")]
         [TestCase("string",   "(newid())",          "Guid.NewGuid().ToString()")]
         [TestCase("string",   "(space((0)))",       "\"\"")]
-        [TestCase("Guid",     "(newsequentialid())", "Guid.NewGuid()")]
+        [TestCase("Guid",     "(newid())",          "Guid.NewGuid()")]
         public void CleanUpDefault_SqlServerFunctionWithACSharpEquivalent_KeepsTheEquivalent(string propertyType, string reported, string expectedDefault)
         {
             var column = CleanUp(DatabaseType.SqlServer, propertyType, reported);
 
             Assert.That(column.Default, Is.EqualTo(expectedDefault));
+        }
+
+        // NEWSEQUENTIALID() has no C# equivalent. Guid.NewGuid() is random, and EF Core inserts a value already set on
+        // the entity, so a constructor initialiser stopped the database ever generating the sequential GUID (#166).
+
+        [Test]
+        public void CleanUpDefault_SqlServerNewSequentialId_IsLeftToTheDatabase()
+        {
+            var column = CleanUp(DatabaseType.SqlServer, "Guid", "(newsequentialid())");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(column.Default, Is.Empty);
+                Assert.That(column.HasDefaultValueSql, Is.EqualTo("newsequentialid()"));
+            });
         }
 
         // A fixed date or time is a quoted C# literal by the time it is validated, and TryParse rejects the quotes, so

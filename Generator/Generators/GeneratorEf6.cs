@@ -73,7 +73,7 @@ namespace Efrpg.Generators
         {
             string databaseGeneratedOption = null;
 
-            var isNewSequentialId = !string.IsNullOrEmpty(c.Default) && c.Default.ToLower().Contains("newsequentialid");
+            var isNewSequentialId = !string.IsNullOrEmpty(c.HasDefaultValueSql) && c.HasDefaultValueSql.ToLower().Contains("newsequentialid");
             var isTemporalColumn = c.GeneratedAlwaysType != ColumnGeneratedAlwaysType.NotApplicable;
 
             // Identity, instead of Computed, seems the best for Temporal `GENERATED ALWAYS` columns: https://stackoverflow.com/questions/40742142/entity-framework-not-working-with-temporal-table

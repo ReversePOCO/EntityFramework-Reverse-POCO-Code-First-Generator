@@ -7046,11 +7046,6 @@ namespace Efrpg.V3TestE1Da
         [Required]
         [Display(Name = "Enabled")]
         public bool Enabled { get; set; } // Enabled
-
-        public Token()
-        {
-            Id = Guid.NewGuid();
-        }
     }
 
     // User

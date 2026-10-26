@@ -17,7 +17,7 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Configuration
             builder.ToTable("Token", "dbo");
             builder.HasKey(x => x.Id).HasName("PK_Token").IsClustered();
 
-            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("uniqueidentifier").IsRequired().ValueGeneratedOnAdd();
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("uniqueidentifier").IsRequired().HasDefaultValueSql(@"newsequentialid()");
             builder.Property(x => x.Enabled).HasColumnName(@"Enabled").HasColumnType("bit").IsRequired();
         }
     }

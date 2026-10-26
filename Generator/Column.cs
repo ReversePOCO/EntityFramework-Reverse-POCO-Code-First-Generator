@@ -394,8 +394,7 @@ namespace Efrpg
                 case "guid":
                 case "system.guid":
                     // gen_random_uuid() is PostgreSQL's newid(); uuid_generate_v4() is the uuid-ossp spelling.
-                    if (lower.Contains("newid()") || lower.Contains("newsequentialid()") ||
-                        lower.Contains("gen_random_uuid()") || lower.Contains("uuid_generate_v4()"))
+                    if (lower.Contains("newid()") || lower.Contains("gen_random_uuid()") || lower.Contains("uuid_generate_v4()"))
                         Default = "Guid.NewGuid()";
                     else if (lower.Contains("null"))
                         Default = "null";
@@ -482,6 +481,8 @@ namespace Efrpg
         ///     EF6 is the exception for dates. It has no HasDefaultValueSql, so it cannot leave a date to the database,
         ///     and the approximate current time it has always generated for any default containing one beats the
         ///     DateTime.MinValue it would otherwise insert.
+        ///     NEWSEQUENTIALID() has no equivalent. Guid.NewGuid() is random, and EF inserts a value already set in the
+        ///     constructor, so the database would never generate the sequential GUID the column asks for.
         /// </remarks>
         private static bool HasCSharpEquivalent(string lowerSql, string lowerPropertyType)
         {
@@ -505,8 +506,7 @@ namespace Efrpg
 
                 case "guid":
                 case "system.guid":
-                    return lowerSql.Contains("newid()") || lowerSql.Contains("newsequentialid()") ||
-                           lowerSql.Contains("gen_random_uuid()") || lowerSql.Contains("uuid_generate_v4()");
+                    return lowerSql.Contains("newid()") || lowerSql.Contains("gen_random_uuid()") || lowerSql.Contains("uuid_generate_v4()");
 
                 default:
                     return false;

@@ -4637,11 +4637,6 @@ namespace Tester.Integration.Ef6
         public const string IdField = "Id";
         public bool Enabled { get; set; } // Enabled
         public const string EnabledField = "Enabled";
-
-        public Token()
-        {
-            Id = Guid.NewGuid();
-        }
     }
 
     // User

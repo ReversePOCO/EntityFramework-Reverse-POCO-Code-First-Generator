@@ -6564,11 +6564,6 @@ namespace V10EfrpgTestDataAnnotations
     {
         public Guid Id { get; set; } // Id (Primary key)
         public bool Enabled { get; set; } // Enabled
-
-        public Token()
-        {
-            Id = Guid.NewGuid();
-        }
     }
 
     // User
@@ -8337,7 +8332,7 @@ namespace V10EfrpgTestDataAnnotations
         {
             builder.HasKey(x => x.Id).HasName("PK_Token").IsClustered();
 
-            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("uniqueidentifier").ValueGeneratedOnAdd().HasDefaultValueSql(@"newsequentialid()");
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("uniqueidentifier").HasDefaultValueSql(@"newsequentialid()");
             builder.Property(x => x.Enabled).HasColumnName(@"Enabled").HasColumnType("bit");
         }
     }

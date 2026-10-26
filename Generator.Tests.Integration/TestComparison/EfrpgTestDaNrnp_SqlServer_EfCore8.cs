@@ -7688,11 +7688,6 @@ namespace Efrpg.V3TestE8Dc
         [Required]
         [Display(Name = "Enabled")]
         public bool Enabled { get; set; } // Enabled
-
-        public Token()
-        {
-            Id = Guid.NewGuid();
-        }
     }
 
     // User
@@ -9610,7 +9605,7 @@ namespace Efrpg.V3TestE8Dc
         {
             builder.HasKey(x => x.Id).HasName("PK_Token").IsClustered();
 
-            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("uniqueidentifier").ValueGeneratedOnAdd();
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("uniqueidentifier").HasDefaultValueSql(@"newsequentialid()");
             builder.Property(x => x.Enabled).HasColumnName(@"Enabled").HasColumnType("bit");
         }
     }

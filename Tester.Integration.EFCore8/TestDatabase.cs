@@ -6230,11 +6230,6 @@ namespace TestDatabaseStandard
     {
         public Guid Id { get; set; } // Id (Primary key)
         public bool Enabled { get; set; } // Enabled
-
-        public Token()
-        {
-            Id = Guid.NewGuid();
-        }
     }
 
     // User
@@ -8109,7 +8104,7 @@ namespace TestDatabaseStandard
             builder.ToTable("Token", "dbo");
             builder.HasKey(x => x.Id).HasName("PK_Token").IsClustered();
 
-            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("uniqueidentifier").IsRequired().ValueGeneratedOnAdd();
+            builder.Property(x => x.Id).HasColumnName(@"Id").HasColumnType("uniqueidentifier").IsRequired().HasDefaultValueSql(@"newsequentialid()");
             builder.Property(x => x.Enabled).HasColumnName(@"Enabled").HasColumnType("bit").IsRequired();
         }
     }

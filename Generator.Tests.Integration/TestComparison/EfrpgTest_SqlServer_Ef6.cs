@@ -5684,11 +5684,6 @@ namespace Efrpg.V3TestE1
     {
         public Guid Id { get; set; } // Id (Primary key)
         public bool Enabled { get; set; } // Enabled
-
-        public Token()
-        {
-            Id = Guid.NewGuid();
-        }
     }
 
     // User

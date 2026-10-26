@@ -16,11 +16,6 @@ namespace Tester.Integration.EFCore8.Single_context_many_files.Entities
     {
         public Guid Id { get; set; } // Id (Primary key)
         public bool Enabled { get; set; } // Enabled
-
-        public Token()
-        {
-            Id = Guid.NewGuid();
-        }
     }
 
 }
